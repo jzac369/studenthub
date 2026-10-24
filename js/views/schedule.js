@@ -37,7 +37,7 @@ export function lessonCard(l, { tools = false, now = false, showDate = false } =
   return `<div class="lesson t-${TYPES[l.type] ? l.type : 'other'} ${now ? 'now' : ''}">
     <div class="time">${showDate && l.date ? `${fmtLessonDate(l.date)} · ` : ''}${time}${l.week && l.week !== 'all' && !l.date ? ` · ${l.week === 'odd' ? 'nepárny' : 'párny'} týž.` : ''}</div>
     <div class="subj">${esc(l.subject)}</div>
-    <div class="info"><span>${esc(TYPES[l.type] || 'Iné')}</span>
+    <div class="info">${isDated(l) ? '' : `<span>${esc(TYPES[l.type] || 'Iné')}</span>`}
       ${l.room ? `<span>${icon(/online/i.test(l.room) ? 'external' : 'home', 12)}${esc(l.room)}</span>` : ''}
       ${l.teacher ? `<span>${icon('user', 12)}${esc(l.teacher)}</span>` : ''}
       ${l.group ? `<span>${icon('users', 12)}${esc(l.group)}</span>` : ''}</div>
@@ -90,7 +90,7 @@ export default async function (root) {
       ${groups.length ? `<select id="grp" style="max-width:200px"><option value="">Všetky krúžky</option>${groups.map(g => `<option ${g === group ? 'selected' : ''}>${esc(g)}</option>`).join('')}</select>` : ''}
       ${tools ? `<button class="btn ghost" id="title">${icon('edit', 16)} Nadpis</button><button class="btn" id="add">${icon('plus', 16)} Pridať hodinu</button>` : ''}</div>
       ${title ? `<p class="schedule-title">${esc(title)}</p>` : ''}
-      <div class="legend" style="margin-bottom:.9rem">${Object.entries(TYPES).map(([k, v]) => `<span class="t-${k}"><i></i>${v}</span>`).join('')}</div>
+      ${weekly.length ? `<div class="legend" style="margin-bottom:.9rem">${Object.entries(TYPES).map(([k, v]) => `<span class="t-${k}"><i></i>${v}</span>`).join('')}</div>` : ''}
       ${dated.length ? `<div class="card dated-list">
         ${upcoming.length ? byDate(upcoming) : '<p class="muted">Všetky termíny výučby už prebehli.</p>'}
         ${past.length ? `<button class="btn ghost sm" id="past" style="margin-top:.75rem">${showPast ? 'Skryť' : 'Zobraziť'} minulé termíny (${past.length})</button>
