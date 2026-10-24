@@ -30,7 +30,7 @@ async function renderUsers(el) {
     <tbody>${users.map(u => `<tr data-n="${esc(`${u.full_name} ${u.email}`.toLowerCase())}">
       <td><strong>${esc(u.full_name || '—')}</strong><div class="muted small">od ${fmtDate(u.created_at)}</div></td>
       <td>${esc(u.email)}<div class="muted small">${esc(u.phone)}</div></td><td>${esc(u.city)}</td>
-      <td>${u.role === 'admin' ? '<span class="badge pri">admin</span>' : 'študent'}</td>
+      <td>${u.role === 'admin' ? '<span class="badge pri">admin</span>' : 'študent'}${u.demo ? ' <span class="badge">ukážka</span>' : ''}</td>
       <td>${u.approved ? '<span class="badge ok">aktívny</span>' : '<span class="badge warn">čaká</span>'}</td>
       <td class="nowrap-cell">${u.id === state.user.uid ? '<span class="muted small">to si ty</span>' : `
         <button class="btn sm ${u.approved ? 'ghost' : ''}" data-approve="${u.id}" data-v="${!u.approved}">${u.approved ? 'Deaktivovať' : `${icon('check', 14)} Schváliť`}</button>
@@ -273,7 +273,23 @@ async function renderSettings(el) {
     ${toggle('register_enabled', 'Register študentov', 'Zoznam kontaktov viditeľný pre všetkých študentov.')}
     <label>Maximálna veľkosť súboru (MB)</label><input name="max_file_mb" type="number" min="1" max="50" value="${Number(s.max_file_mb) || DEFAULT_SETTINGS.max_file_mb}" style="max-width:120px">
     <p class="muted small">Technický limit úložiska je 50 MB na súbor.</p>
-    <button class="btn" style="margin-top:.5rem">${icon('check', 16)} Uložiť nastavenia</button></form>`;
+    <button class="btn" style="margin-top:.5rem">${icon('check', 16)} Uložiť nastavenia</button></form>
+    <div class="card" style="max-width:560px"><h2>${icon('users')} Ukážkové dáta</h2>
+      <p class="muted small">Pridá 50 fiktívnych študentov s vymyslenými údajmi do registra, aby si videl, ako portál vyzerá naplnený. Nemajú prihlasovacie účty a jedným klikom ich zase zmažeš.</p>
+      <div class="row"><button class="btn ghost" id="demo-add">${icon('userPlus', 16)} Pridať 50 ukážkových študentov</button>
+        <button class="btn ghost" id="demo-del">${icon('trash', 16)} Zmazať ukážkových študentov</button></div></div>`;
+  el.querySelector('#demo-add').onclick = e => guard(async () => {
+    e.target.disabled = true;
+    const { createDemoStudents } = await import('./demo.js');
+    await createDemoStudents(50);
+    toast('Pridaných 50 ukážkových študentov – nájdeš ich v Registri');
+    e.target.disabled = false;
+  });
+  el.querySelector('#demo-del').onclick = () => guard(async () => {
+    if (!confirm('Zmazať všetkých ukážkových študentov?')) return;
+    const { deleteDemoStudents } = await import('./demo.js');
+    toast(`Zmazaných ${await deleteDemoStudents()} ukážkových študentov`);
+  });
   el.querySelector('form').onsubmit = e => guard(async () => {
     e.preventDefault();
     const f = new FormData(e.target);
