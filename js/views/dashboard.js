@@ -1,5 +1,5 @@
 import { state, col, query, where, list, cached, esc, fmtDate, feature, icon, today, unreadCount } from '../lib.js';
-import { lessonCard, runsThisWeek, sortLessons } from './schedule.js';
+import { lessonCard, lessonsOn, nextDated } from './schedule.js';
 import { mountBoard } from './board.js';
 
 // Domov: vľavo osobný prehľad, vpravo celá nástenka so sticky notes
@@ -13,7 +13,8 @@ export default async function (root) {
   ]);
   const upcoming = assignments.filter(a => a.due_date && a.due_date >= day)
     .sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 5);
-  const todays = schedule.filter(l => l.day === new Date().getDay() && runsThisWeek(l)).sort(sortLessons);
+  const todays = lessonsOn(schedule, day);
+  const next = todays.length ? [] : nextDated(schedule, day).filter((l, i, all) => l.date === all[0].date);
   const unreadN = state.convs.reduce((sum, c) => sum + unreadCount(c), 0);
   const firstName = state.profile.full_name.split(' ')[0] || '';
   const daysLeft = d => Math.round((new Date(d) - new Date(day)) / 864e5);
@@ -26,7 +27,8 @@ export default async function (root) {
       ${feature('messaging_enabled') ? tile('#/spravy', 'message', 'Neprečítané správy', unreadN, unreadN ? 'otvoriť správy' : 'všetko prečítané') : ''}
       ${feature('uploads_enabled') ? tile('#/prace', 'file', 'Moje odovzdané práce', subs.length, `odoslané lektorovi: ${subs.filter(s => s.status === 'forwarded').length}`) : ''}
       <div class="card"><h2>${icon('calendar')} Dnes</h2>
-        ${todays.length ? todays.map(l => lessonCard(l)).join('') : '<p class="muted">Dnes nemáš žiadne hodiny.</p>'}
+        ${todays.length ? todays.map(l => lessonCard(l)).join('')
+          : `<p class="muted">Dnes nemáš žiadne hodiny.</p>${next.length ? `<div class="muted small" style="margin:.4rem 0">Najbližšia výučba:</div>${next.map(l => lessonCard(l, { showDate: true })).join('')}` : ''}`}
         <a href="#/rozvrh" class="small">Celý rozvrh</a>
       </div>
       <div class="card"><h2>${icon('clock')} Termíny</h2>

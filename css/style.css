@@ -323,3 +323,15 @@ details.assign { border-top: 1px solid var(--border); padding: .7rem 0; }
 details.assign summary { cursor: pointer; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; list-style: none; }
 details.assign summary::-webkit-details-marker { display: none; }
 .check.remember { margin-top: .75rem; font-weight: 500; }
+
+/* --- rozvrh podľa dátumov (externé štúdium) --- */
+.schedule-title { font-weight: 600; color: var(--primary); margin: -.4rem 0 .8rem; }
+.dated-list .month { text-transform: capitalize; font-size: .9rem; color: var(--muted); margin: 1rem 0 .4rem; letter-spacing: .03em; }
+.dated-list .month:first-child { margin-top: 0; }
+.dated { display: grid; grid-template-columns: 120px 1fr; gap: .75rem; padding: .55rem .4rem; border-radius: 10px; }
+.dated + .dated { border-top: 1px solid var(--border); }
+.dated.today, .dated.next { background: var(--primary-soft); border-top-color: transparent; }
+.dated.past { opacity: .6; }
+.dated-day { display: flex; flex-direction: column; gap: .3rem; align-items: flex-start; padding-top: .3rem; }
+.dated-items .lesson:last-child { margin-bottom: 0; }
+@media (max-width: 600px) { .dated { grid-template-columns: 1fr; gap: .3rem; } .dated-day { flex-direction: row; align-items: center; } }

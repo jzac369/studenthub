@@ -522,7 +522,7 @@ async function renderSettings(el) {
       messaging_enabled: f.has('messaging_enabled'),
       register_enabled: f.has('register_enabled'),
       max_file_mb: Math.min(50, Math.max(1, Number(f.get('max_file_mb')) || DEFAULT_SETTINGS.max_file_mb)),
-    });
+    }, { merge: true });
     await bump('settings');
     await logActivity('Nastavenia portálu', `práce ${f.has('uploads_enabled') ? 'zap.' : 'vyp.'}, správy ${f.has('messaging_enabled') ? 'zap.' : 'vyp.'}, register ${f.has('register_enabled') ? 'zap.' : 'vyp.'}, limit ${f.get('max_file_mb')} MB`);
     toast('Nastavenia uložené – menu sa obnoví');
