@@ -240,3 +240,4 @@ code.pw { font-size: 1.2rem; background: var(--surface-2); padding: .3rem .6rem;
 .powered b { font-weight: 700; color: var(--text); }
 .powered.left { text-align: left; padding-left: .4rem; margin-top: .75rem; }
 .msgs .older { align-self: center; margin-bottom: .5rem; }
+.card.center h2 { justify-content: center; }
