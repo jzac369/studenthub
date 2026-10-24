@@ -6,12 +6,13 @@ const tilt = id => ((id.charCodeAt(0) + id.charCodeAt(5)) % 7) - 3;
 // Červený špendlík pre pripnuté oznamy
 const PIN = `<svg class="pin" width="26" height="30" viewBox="0 0 26 30" aria-label="Pripnuté"><line x1="13" y1="16" x2="13" y2="29" stroke="#6b7280" stroke-width="2" stroke-linecap="round"/><circle cx="13" cy="10" r="9" fill="#e5484d"/><circle cx="10" cy="7" r="3" fill="#fff" opacity=".45"/></svg>`;
 
-export default async function (root) {
+// Nástenka so sticky notes – vkladá sa do stránky Domov (pravý stĺpec)
+export async function mountBoard(root) {
   async function render() {
     const notes = (await cached('announcements'))
       .sort((a, b) => (!!b.pinned - !!a.pinned) || (toDate(b.created_at) - toDate(a.created_at)));
-    root.innerHTML = `<div class="title-row"><h1>${icon('pin', 24)} Nástenka</h1><span class="spacer"></span>
-      ${isAdmin() ? `<button class="btn" id="add">${icon('plus', 16)} Nový oznam</button>` : ''}</div>
+    root.innerHTML = `<div class="board-head"><h2>${icon('pin', 20)} Nástenka</h2><span class="spacer"></span>
+      ${isAdmin() ? `<button class="btn sm" id="add">${icon('plus', 15)} Nový oznam</button>` : ''}</div>
       ${notes.length ? '' : '<p class="muted">Na nástenke zatiaľ nič nie je.</p>'}
       <div class="board">${notes.map(n => `
         <article class="note ${n.pinned ? 'pinned' : ''}" style="--note:var(--note-${COLORS.includes(n.color) ? n.color : 'yellow'});--r:${tilt(n.id)}deg">
@@ -55,3 +56,5 @@ export default async function (root) {
 
   await render();
 }
+
+export default mountBoard;

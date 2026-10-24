@@ -14,7 +14,7 @@
 
 | | Študent | Admin |
 |---|---|---|
-| Nástenka | číta | píše, upravuje, pripína |
+| Domov s nástenkou | číta | píše, upravuje, pripína oznamy |
 | Rozvrh | číta, filtruje podľa krúžku | pridáva a upravuje hodiny |
 | Práce | iba svoje: nahráva, sťahuje, maže, kým nie sú odoslané | všetky: filtruje, sťahuje ZIP, posiela lektorovi |
 | Správy | súkromné správy; v skupinách iba čítajú | súkromné správy, skupiny a hromadná správa všetkým |

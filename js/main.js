@@ -7,7 +7,6 @@ import { renderAuth, renderPending, signupDone } from './auth.js';
 
 const NAV = [
   { key: '',         label: 'Domov',         icon: 'home',     load: () => import('./views/dashboard.js') },
-  { key: 'nastenka', label: 'Nástenka',      icon: 'pin',      load: () => import('./views/board.js') },
   { key: 'rozvrh',   label: 'Rozvrh',        icon: 'calendar', load: () => import('./views/schedule.js') },
   { key: 'prace',    label: 'Moje práce',    icon: 'upload',   load: () => import('./views/submissions.js'), feature: 'uploads_enabled' },
   { key: 'spravy',   label: 'Správy',        icon: 'message',  load: () => import('./views/messages.js'), feature: 'messaging_enabled', badge: true },
@@ -23,7 +22,7 @@ let unsubConvs = null;
 let unsubVersions = null;
 let lastPage = '';
 // Stránky, ktoré sa prekreslia, keď admin niečo zmení (nástenka, rozvrh…)
-const LIVE_VIEWS = ['', 'nastenka', 'rozvrh', 'register'];
+const LIVE_VIEWS = ['', 'rozvrh', 'register'];
 
 if (!configured) {
   app.innerHTML = `<div class="auth"><div class="card"><div class="logo big">${logo(40, true)}</div><h2>StudentHUB ešte nie je nastavený</h2>

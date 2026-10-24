@@ -401,7 +401,7 @@ async function renderSettings(el) {
   el.querySelector('#demo-notes').onclick = e => run(e.currentTarget, async m => {
     await m.createDemoAnnouncements(state.user.uid);
     logActivity('Ukážkové dáta', 'pridaných 6 oznamov');
-    toast('Pridaných 6 ukážkových oznamov – pozri Nástenku');
+    toast('Pridaných 6 ukážkových oznamov – pozri Domov');
   });
   el.querySelector('#demo-del').onclick = e => {
     if (!confirm('Zmazať všetkých ukážkových študentov aj ukážkové oznamy?')) return;
