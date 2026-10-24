@@ -57,7 +57,7 @@ export default async function (root) {
       <div class="msgs" id="msgs"></div>
       ${c.is_group && !isAdmin()
         ? `<div class="chat-readonly">${icon('megaphone', 15)} Do skupiny môžu písať iba administrátori.</div>`
-        : `<form class="chat-form" id="send"><textarea name="body" placeholder="Napíš správu… (Enter odošle, Shift+Enter nový riadok)" maxlength="4000" required></textarea>
+        : `<form class="chat-form" id="send"><textarea name="body" placeholder="Napíš správu…" title="Enter odošle, Shift+Enter nový riadok" maxlength="4000" required></textarea>
         <button class="btn" title="Odoslať">${icon('send', 16)}</button></form>`}`;
     pane.querySelector('#back').onclick = () => chat.classList.remove('open');
 
