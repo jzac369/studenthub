@@ -6,7 +6,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where,
-  orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment,
+  orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment, deleteField,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js';
 import { firebaseConfig } from './config.js';
@@ -15,7 +15,7 @@ export {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail,
   signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit,
-  onSnapshot, serverTimestamp, writeBatch, increment,
+  onSnapshot, serverTimestamp, writeBatch, increment, deleteField,
 };
 export { icon } from './icons.js';
 
@@ -123,6 +123,41 @@ export function fmtSize(b) {
   return `${(b / 1073741824).toFixed(2)} GB`;
 }
 export const initials = name => (name || '?').split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
+
+// ---------- Profilové fotky ----------
+// Fotka je malý JPEG uložený priamo v profile (pole photo) – nepotrebuje Storage ani plán Blaze
+const PHOTO_PREFIX = 'data:image/jpeg;base64,';
+const AVATAR_TONES = 6;
+const tone = s => [...String(s || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % AVATAR_TONES;
+
+export function avatar(person, size = 34) {
+  const style = `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.36)}px`;
+  if (typeof person?.photo === 'string' && person.photo.startsWith(PHOTO_PREFIX)) {
+    return `<img class="avatar photo" style="${style}" src="${person.photo}" alt="">`;
+  }
+  return `<div class="avatar tone-${tone(person?.id || person?.full_name)}" style="${style}">${esc(initials(person?.full_name))}</div>`;
+}
+
+// Zmenší obrázok na štvorec (orez na stred) a vráti JPEG ako data URL, typicky 5–10 kB
+export function resizePhoto(file, px = 160, quality = 0.8) {
+  return new Promise((resolve, reject) => {
+    if (!file.type.startsWith('image/')) return reject(new Error('Vyber obrázok (JPG, PNG…)'));
+    const img = new Image();
+    img.onload = () => {
+      const side = Math.min(img.width, img.height);
+      const canvas = document.createElement('canvas');
+      canvas.width = canvas.height = px;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, px, px);
+      ctx.drawImage(img, (img.width - side) / 2, (img.height - side) / 2, side, side, 0, 0, px, px);
+      URL.revokeObjectURL(img.src);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => reject(new Error('Obrázok sa nepodarilo načítať'));
+    img.src = URL.createObjectURL(file);
+  });
+}
 export const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD v miestnom čase
 
 // Bez diakritiky a špeciálnych znakov – bezpečné pre cesty v úložisku a v ZIP

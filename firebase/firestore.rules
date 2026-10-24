@@ -24,9 +24,13 @@ service cloud.firestore {
                     && request.resource.data.role == 'student'
                     && request.resource.data.approved == false
                     && request.resource.data.email == request.auth.token.email);
-      // Študent smie meniť iba meno, telefón a mesto
+      // Študent smie meniť iba meno, telefón, mesto a profilovú fotku (malý JPEG, max. ~60 kB)
       allow update: if admin() || (request.auth.uid == uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['full_name', 'phone', 'city']));
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['full_name', 'phone', 'city', 'photo'])
+                    && (!('photo' in request.resource.data)
+                        || (request.resource.data.photo is string
+                            && request.resource.data.photo.size() < 61440
+                            && request.resource.data.photo.matches('^data:image/jpeg;base64,.*'))));
       allow delete: if admin();
     }
 

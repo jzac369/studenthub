@@ -1,6 +1,6 @@
 import {
   db, state, collection, col, doc, getDoc, setDoc, addDoc, updateDoc, query, orderBy, limit, onSnapshot,
-  serverTimestamp, writeBatch, increment, rows, toDate, isUnread, unreadCount, logActivity, esc, guard, modal, fmtDateTime, initials, icon, isAdmin, loadPeople,
+  serverTimestamp, writeBatch, increment, rows, toDate, isUnread, unreadCount, logActivity, avatar as personAvatar, esc, guard, modal, fmtDateTime, initials, icon, isAdmin, loadPeople,
 } from '../lib.js';
 
 export default async function (root) {
@@ -24,7 +24,9 @@ export default async function (root) {
   const chat = root.querySelector('#chat');
   const name = id => state.people.get(id)?.full_name || 'Neznámy';
   const title = c => (c.is_group ? c.name : name(c.members.find(m => m !== uid)));
-  const avatar = c => `<div class="avatar">${c.is_group ? icon('users', 16) : esc(initials(title(c)))}</div>`;
+  const avatar = c => (c.is_group
+    ? `<div class="avatar">${icon('users', 16)}</div>`
+    : personAvatar(state.people.get(c.members.find(m => m !== uid)) || { full_name: title(c) }, 34));
 
   // Zoznam konverzácií sa aktualizuje živo z odberu v main.js
   function drawList() {
@@ -130,18 +132,21 @@ export default async function (root) {
     wireFilter(m.el);
     m.el.querySelector('form').onsubmit = e => guard(async () => {
       e.preventDefault();
-      const other = new FormData(e.target).get('who');
-      // Súkromná konverzácia má pevné id z oboch účtov – vznikne iba raz
-      const id = 'dm_' + [uid, other].sort().join('_');
-      const ref = doc(db, 'conversations', id);
-      if (!(await getDoc(ref)).exists()) {
-        await setDoc(ref, newConv([uid, other], { name: '', is_group: false }));
-        logActivity('Nová súkromná konverzácia', `s ${name(other)}`);
-      }
+      await startDm(new FormData(e.target).get('who'));
       m.close();
-      openWhenReady(id);
     });
   };
+
+  // Súkromná konverzácia má pevné id z oboch účtov – vznikne iba raz
+  async function startDm(other) {
+    const id = 'dm_' + [uid, other].sort().join('_');
+    const ref = doc(db, 'conversations', id);
+    if (!(await getDoc(ref)).exists()) {
+      await setDoc(ref, newConv([uid, other], { name: '', is_group: false }));
+      logActivity('Nová súkromná konverzácia', `s ${name(other)}`);
+    }
+    openWhenReady(id);
+  }
 
   root.querySelector('#grp')?.addEventListener('click', () => {
     const m = modal('Nová skupinová konverzácia', `<form><label>Názov skupiny</label><input name="name" required maxlength="60" placeholder="napr. Tím – projekt Marketing">
@@ -177,6 +182,11 @@ export default async function (root) {
 
   window.addEventListener('sh:convs', drawList);
   drawList();
+
+  // Príchod z Registra cez tlačidlo „Napísať správu“
+  let openDm = null;
+  try { openDm = sessionStorage.getItem('sh-open-dm'); sessionStorage.removeItem('sh-open-dm'); } catch {}
+  if (openDm && state.people.has(openDm)) guard(() => startDm(openDm));
   return () => {
     window.removeEventListener('sh:convs', drawList);
     unsubMsgs?.();

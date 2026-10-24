@@ -1,6 +1,6 @@
 import {
   auth, db, state, configured, $, $$, esc, icon, isAdmin, feature, initials, toggleTheme, loadPeople, loadSettings,
-  watchVersions, clearCache, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
+  watchVersions, clearCache, avatar, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
 } from './lib.js';
 import { logo } from './icons.js';
 import { renderAuth, renderPending, signupDone } from './auth.js';
@@ -89,7 +89,7 @@ function renderShell() {
       <div class="logo">${logo(25, true)}</div>
       <nav class="nav">${items.map(n => `<a href="#/${n.key}" data-key="${n.key}">${icon(n.icon)}<span>${n.label}</span>${n.badge ? '<span class="count hidden" id="unread"></span>' : ''}</a>`).join('')}</nav>
       <div class="side-foot">
-        <div class="me"><div class="avatar">${esc(initials(p.full_name))}</div>
+        <div class="me">${avatar(p, 34)}
           <div class="min0"><div class="strong ellipsis">${esc(p.full_name)}</div><div class="muted small">${isAdmin() ? 'Administrátor' : 'Študent'}</div></div></div>
         <div class="row"><button class="btn ghost sm" id="theme" title="Prepnúť tmavý režim">${icon('moon', 15)} Režim</button>
           <button class="btn ghost sm" id="logout">${icon('logout', 15)} Odhlásiť</button></div>

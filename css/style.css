@@ -279,3 +279,26 @@ code.pw { font-size: 1.2rem; background: var(--surface-2); padding: .3rem .6rem;
 .board-head h2 { margin: 0; display: flex; align-items: center; gap: .5rem; }
 .board-head h2 .ic { color: var(--primary); }
 @media (max-width: 1000px) { .home { grid-template-columns: 1fr; } }
+
+/* --- avatary a fotky --- */
+img.avatar.photo { object-fit: cover; border-radius: 50%; display: block; flex-shrink: 0; }
+.avatar { flex-shrink: 0; }
+.avatar.tone-0 { background: #e6f1fb; color: #0c447c; } .avatar.tone-1 { background: #fbeaf0; color: #72243e; }
+.avatar.tone-2 { background: #e1f5ee; color: #085041; } .avatar.tone-3 { background: #faeeda; color: #633806; }
+.avatar.tone-4 { background: #eeedfe; color: #3c3489; } .avatar.tone-5 { background: #faece7; color: #712b13; }
+.photo-edit { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
+
+/* --- register: zoznam a detail --- */
+.reg { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.3fr); gap: 1.25rem; align-items: start; }
+.reg-list { max-height: calc(100vh - 15rem); overflow-y: auto; margin: 0 -.4rem; padding: 0 .4rem; }
+.reg-item { display: flex; align-items: center; gap: .7rem; padding: .5rem .6rem; border-radius: 8px; cursor: pointer; width: 100%;
+  background: none; border: 0; font: inherit; color: inherit; text-align: left; }
+.reg-item:hover { background: var(--surface-2); }
+.reg-item.active { background: var(--primary-soft); color: var(--primary); font-weight: 600; }
+.reg-detail { position: sticky; top: 1.5rem; text-align: center; }
+.reg-detail .avatar { margin: .5rem auto 1rem; }
+.reg-detail h2 { justify-content: center; margin-bottom: .2rem; }
+.reg-contacts { text-align: left; display: grid; gap: .55rem; margin: 1.25rem 0; }
+.reg-contacts a, .reg-contacts span { display: flex; align-items: center; gap: .6rem; word-break: break-all; }
+.reg-contacts .ic { color: var(--primary); }
+@media (max-width: 900px) { .reg { grid-template-columns: 1fr; } .reg-detail { position: static; order: -1; } .reg-list { max-height: none; } }
