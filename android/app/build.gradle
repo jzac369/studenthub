@@ -11,7 +11,7 @@ android {
 
     defaultConfig {
         applicationId 'io.github.jzac369.studenthub'
-        minSdk 23
+        minSdk 24
         targetSdk 36
         // Číslo verzie dodáva GitHub Actions (číslo behu), lokálne 1
         versionCode buildNumber as int
