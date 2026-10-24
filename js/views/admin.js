@@ -1,5 +1,5 @@
 import {
-  app, db, state, col, doc, query, where, list, cached, bump, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
+  app, db, state, col, doc, query, where, orderBy, limit, list, cached, bump, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
   increment, toDate, byNewest, createUserWithEmailAndPassword, signOut, getHelperAuth, downloadFile, removeFile, loadSettings,
   DEFAULT_SETTINGS, quotaUsage, QUOTA, WARN_AT, PROJECT_ID, logActivity,
   esc, guard, toast, modal, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon,
@@ -8,6 +8,7 @@ import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/
 
 const TABS = [
   ['overview', 'activity', 'Prehľad', renderOverview],
+  ['stats', 'clock', 'Štatistiky', renderStats],
   ['users', 'users', 'Používatelia', renderUsers],
   ['forward', 'archive', 'Práce a preposielanie', renderForward],
   ['subjects', 'book', 'Predmety a termíny', renderSubjects],
@@ -88,6 +89,102 @@ async function renderOverview(el) {
     toast('Spotreba aktualizovaná');
     renderOverview(el);
   }));
+}
+
+// ---------------------------------------------------------------- Štatistiky
+async function renderStats(el) {
+  const [users, subjects, assignments, subs, pendingMat, market] = await Promise.all([
+    cached('users'), cached('subjects'), cached('assignments'), list(col('submissions')),
+    list(query(col('materials'), where('status', '==', 'pending'))), list(query(col('market'), where('status', '==', 'active'))),
+  ]);
+  const students = users.filter(u => u.approved && u.role !== 'admin').sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
+  const todayIso = new Date().toLocaleDateString('sv-SE');
+  const dayOf = r => toDate(r.created_at)?.toLocaleDateString('sv-SE') || '';
+  const late = subs.filter(r => r.due_date && dayOf(r) > r.due_date);
+  const withSub = new Set(subs.map(r => r.student_id));
+  assignments.sort((a, b) => (a.due_date || '9').localeCompare(b.due_date || '9'));
+
+  // Pre každé zadanie: kto odovzdal, kto nie, kto po termíne
+  const perAssignment = assignments.map(a => {
+    const got = subs.filter(r => r.assignment_id === a.id);
+    const ids = new Set(got.map(r => r.student_id));
+    return {
+      a, count: ids.size, late: got.filter(r => a.due_date && dayOf(r) > a.due_date).length,
+      missing: students.filter(s => !ids.has(s.id)), overdue: a.due_date && a.due_date < todayIso,
+    };
+  });
+  const tile = (label, value, sub = '') => `<div class="card"><div class="muted small">${label}</div><div class="stat">${value}</div><div class="muted small">${sub}</div></div>`;
+
+  el.innerHTML = `<div class="stat-grid">
+      ${tile('Študenti', students.length, `${students.length - withSub.size} bez jedinej práce`)}
+      ${tile('Odovzdané práce', subs.length, `${subs.filter(r => r.status === 'forwarded').length} odoslaných lektorovi`)}
+      ${tile('Po termíne', late.length, subs.length ? `${Math.round(late.length / subs.length * 100)} % prác` : '')}
+      ${tile('Materiály na schválenie', pendingMat.length, '<a href="#/materialy/schvalovanie">schváliť</a>')}
+      ${tile('Inzeráty v burze', market.length, 'aktívne')}
+    </div>
+    <div class="card"><div class="row"><h2 style="margin:0">${icon('clock')} Odovzdávanie podľa zadaní</h2><span class="spacer"></span>
+      <button class="btn ghost sm" id="csv">${icon('download', 14)} Export chýbajúcich (CSV)</button></div>
+      ${perAssignment.length ? perAssignment.map((p, i) => {
+        const pct = students.length ? p.count / students.length : 0;
+        return `<details class="assign"><summary>
+          <strong>${esc(p.a.title)}</strong><span class="muted small">${esc(p.a.subject_name)} · termín ${fmtDate(p.a.due_date)}</span><span class="spacer"></span>
+          <span class="badge ${pct >= 0.9 ? 'ok' : p.overdue ? 'err' : 'warn'}">${p.count} / ${students.length}</span>
+          ${p.late ? `<span class="badge warn">${p.late} po termíne</span>` : ''}</summary>
+          ${p.missing.length ? `<div class="muted small" style="margin-top:.5rem">Neodovzdali (${p.missing.length}):</div>
+            <div class="missing">${p.missing.map(s => `<span>${esc(s.full_name)}</span>`).join('')}</div>
+            <button class="btn ghost sm" data-remind="${i}" style="margin-top:.6rem">${icon('mail', 14)} Pripomenúť e-mailom</button>`
+          : '<p class="muted small">Všetci odovzdali.</p>'}
+        </details>`;
+      }).join('') : '<p class="muted">Zatiaľ nie sú zadané žiadne zadania. Pridáš ich v časti Predmety a termíny.</p>'}
+    </div>
+    <div class="card"><h2>${icon('book')} Práce podľa predmetov</h2>
+      <table>${subjects.map(s => {
+        const n = subs.filter(r => r.subject_id === s.id).length;
+        return `<tr><td>${esc(s.name)}</td><td style="text-align:right"><strong>${n}</strong></td></tr>`;
+      }).join('') || '<tr><td class="muted">Žiadne predmety.</td></tr>'}</table>
+    </div>
+    <div class="card"><div class="row"><h2 style="margin:0">${icon('activity')} Aktivita študentov za 7 dní</h2><span class="spacer"></span>
+      <button class="btn ghost sm" id="activity">${icon('refresh', 14)} Načítať z logu</button></div>
+      <div id="act" class="muted small" style="margin-top:.5rem">Aktivitu načítame z Logu až na požiadanie, aby sme šetrili čítania z databázy.</div>
+    </div>`;
+
+  el.querySelectorAll('[data-remind]').forEach(b => b.onclick = () => {
+    const p = perAssignment[Number(b.dataset.remind)];
+    const body = `Dobrý deň,\n\nprosím o odovzdanie práce „${p.a.title}“ (${p.a.subject_name}) cez StudentHUB${p.a.due_date ? ` do ${fmtDate(p.a.due_date)}` : ''}.\n\n${location.origin + location.pathname}\n\nĎakujem`;
+    location.href = `mailto:?bcc=${encodeURIComponent(p.missing.map(s => s.email).join(','))}&subject=${encodeURIComponent(`Pripomienka: ${p.a.title}`)}&body=${encodeURIComponent(body)}`;
+    logActivity('Pripomienka neodovzdanej práce', `${p.a.title} – ${p.missing.length} študentov`);
+  });
+
+  el.querySelector('#csv').onclick = () => {
+    const cell = v => `"${String(v ?? '').replace(/"/g, '""')}"`;
+    const rows = perAssignment.flatMap(p => p.missing.map(s => [p.a.subject_name, p.a.title, p.a.due_date, s.full_name, s.email].map(cell).join(';')));
+    downloadBlob(new Blob(['﻿' + ['Predmet;Zadanie;Termín;Študent;E-mail', ...rows].join('\r\n')], { type: 'text/csv;charset=utf-8' }), 'studenthub-neodovzdane.csv');
+  };
+
+  el.querySelector('#activity').onclick = e => guard(async () => {
+    e.currentTarget.disabled = true;
+    const since = new Date(Date.now() - 7 * 864e5);
+    const logs = await list(query(col('logs'), where('at', '>=', since), orderBy('at', 'desc'), limit(3000)));
+    const last = new Map();
+    const count = new Map();
+    logs.forEach(l => {
+      if (!last.has(l.uid)) last.set(l.uid, l.at);
+      count.set(l.uid, (count.get(l.uid) || 0) + 1);
+    });
+    const active = students.filter(s => last.has(s.id)).sort((a, b) => count.get(b.id) - count.get(a.id));
+    const inactive = students.filter(s => !last.has(s.id));
+    el.querySelector('#act').classList.remove('muted', 'small');
+    el.querySelector('#act').innerHTML = `<div class="stat-grid">
+        ${tile('Aktívni za 7 dní', active.length, students.length ? `${Math.round(active.length / students.length * 100)} % študentov` : '')}
+        ${tile('Neprihlásili sa', inactive.length, '')}
+        ${tile('Záznamov v logu', logs.length, logs.length >= 3000 ? 'zobrazených prvých 3 000' : '')}
+      </div>
+      <table><thead><tr><th>Najaktívnejší</th><th>Akcií</th><th>Naposledy</th></tr></thead><tbody>
+      ${active.slice(0, 10).map(s => `<tr><td>${esc(s.full_name)}</td><td>${count.get(s.id)}</td><td>${fmtDateTime(last.get(s.id))}</td></tr>`).join('') || '<tr><td colspan="3" class="muted">Nikto</td></tr>'}
+      </tbody></table>
+      ${inactive.length ? `<div class="muted small" style="margin-top:.75rem">Neprihlásili sa ani raz za 7 dní (${inactive.length}):</div>
+        <div class="missing">${inactive.map(s => `<span>${esc(s.full_name)}</span>`).join('')}</div>` : ''}`;
+  });
 }
 
 // ---------------------------------------------------------------- Používatelia

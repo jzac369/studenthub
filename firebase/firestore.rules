@@ -86,6 +86,27 @@ service cloud.firestore {
       allow write: if admin();
     }
 
+    // ---------- Študijné materiály: študenti pridávajú, admin schvaľuje ----------
+    match /materials/{id} {
+      allow read: if approved() && (resource.data.status == 'approved'
+                    || resource.data.uploader_id == request.auth.uid || admin());
+      allow create: if approved() && request.resource.data.uploader_id == request.auth.uid
+                    && (request.resource.data.status == 'pending' || admin());
+      allow update: if admin();
+      allow delete: if admin() || (approved() && resource.data.uploader_id == request.auth.uid
+                    && resource.data.status != 'approved');
+    }
+
+    // ---------- Burza kníh a skrípt ----------
+    match /market/{id} {
+      allow read: if approved();
+      allow create: if approved() && request.resource.data.seller_id == request.auth.uid
+                    && request.resource.data.status == 'active';
+      allow update: if admin() || (approved() && resource.data.seller_id == request.auth.uid
+                    && request.resource.data.seller_id == request.auth.uid);
+      allow delete: if admin() || (approved() && resource.data.seller_id == request.auth.uid);
+    }
+
     // ---------- Odovzdané práce ----------
     match /submissions/{id} {
       allow read: if approved() && (resource.data.student_id == request.auth.uid || admin());

@@ -174,6 +174,7 @@ const LOADERS = {
   schedule: () => list(col('schedule')),
   subjects: () => list(col('subjects')),
   assignments: () => list(col('assignments')),
+  materials: () => list(query(col('materials'), where('status', '==', 'approved'))),
   settings: async () => (await getDoc(doc(db, 'settings', 'app'))).data() || {},
 };
 let versions = {};

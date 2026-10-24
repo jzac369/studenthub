@@ -9,6 +9,7 @@ const NAV = [
   { key: '',         label: 'Domov',         icon: 'home',     load: () => import('./views/dashboard.js') },
   { key: 'rozvrh',   label: 'Rozvrh',        icon: 'calendar', load: () => import('./views/schedule.js') },
   { key: 'prace',    label: 'Moje práce',    icon: 'upload',   load: () => import('./views/submissions.js'), feature: 'uploads_enabled' },
+  { key: 'materialy', label: 'Materiály',     icon: 'book',     load: () => import('./views/materials.js') },
   { key: 'spravy',   label: 'Správy',        icon: 'message',  load: () => import('./views/messages.js'), feature: 'messaging_enabled', badge: true },
   { key: 'register', label: 'Register',      icon: 'users',    load: () => import('./views/register.js'), feature: 'register_enabled' },
   { key: 'profil',   label: 'Môj profil',    icon: 'user',     load: () => import('./views/profile.js') },

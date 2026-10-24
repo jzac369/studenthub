@@ -20,6 +20,14 @@ service firebase.storage {
       allow delete: if approved() && (request.auth.uid == uid || admin());
     }
 
+    // Študijné materiály: nahráva sa do vlastného priečinka, čítať môže každý schválený používateľ
+    match /materials/{uid}/{file} {
+      allow read: if approved();
+      allow create: if approved() && request.auth.uid == uid
+                    && request.resource.size <= 50 * 1024 * 1024;
+      allow delete: if approved() && (request.auth.uid == uid || admin());
+    }
+
     // Všetko ostatné je zakázané
     match /{path=**} {
       allow read, write: if false;
