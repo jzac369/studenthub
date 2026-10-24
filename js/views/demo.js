@@ -37,13 +37,44 @@ export async function createDemoStudents(count = 50) {
   await bump('users');
 }
 
-export async function deleteDemoStudents() {
-  const demo = await list(query(col('users'), where('demo', '==', true)));
+const NOTES = [
+  { title: 'Prihlasovanie na skúšky', color: 'yellow', pinned: true,
+    body: 'Prihlasovanie na skúšky zimného semestra v AIS sa otvára v utorok 1. 12. o 8:00.\nTermíny budú zverejnené najneskôr do 25. 11.' },
+  { title: 'Seminárne práce – Marketing', color: 'pink',
+    body: 'Seminárne práce z Marketingu odovzdajte do piatku 13. 11. cez sekciu Moje práce.\nFormát PDF, max. 30 MB, na titulnej strane meno a krúžok.' },
+  { title: 'Zmena miestnosti', color: 'blue',
+    body: 'Prednáška z Makroekonómie v utorok 27. 10. bude výnimočne v aule A01, nie v B204.' },
+  { title: 'Imatrikulácia prvákov', color: 'green',
+    body: 'Slávnostná imatrikulácia sa koná vo štvrtok 5. 11. o 10:00 v Aule Magna.\nDress code: formálne oblečenie.' },
+  { title: 'Konzultačné hodiny', color: 'purple',
+    body: 'doc. Novák – streda 14:00 – 15:30, kancelária B312.\nMimo konzultačných hodín po dohode e-mailom.' },
+  { title: 'Knižnica počas skúškového', color: 'orange',
+    body: 'Počas skúškového obdobia má knižnica predĺžené otváracie hodiny: pondelok – piatok 8:00 – 20:00, sobota 9:00 – 14:00.' },
+];
+
+export async function createDemoAnnouncements(authorId) {
+  const batch = writeBatch(db);
+  // Rozdielne časy vytvorenia, aby sa oznamy zoradili ako postupne pridávané
+  NOTES.forEach((n, i) => batch.set(doc(col('announcements')), {
+    ...n, pinned: !!n.pinned, author_id: authorId, demo: true,
+    created_at: new Date(Date.now() - (NOTES.length - i) * 864e5),
+  }));
+  await batch.commit();
+  await bump('announcements');
+}
+
+async function deleteDemo(name) {
+  const demo = await list(query(col(name), where('demo', '==', true)));
   for (let i = 0; i < demo.length; i += 400) {
     const batch = writeBatch(db);
-    demo.slice(i, i + 400).forEach(u => batch.delete(doc(db, 'users', u.id)));
+    demo.slice(i, i + 400).forEach(d => batch.delete(doc(db, name, d.id)));
     await batch.commit();
   }
-  await bump('users');
+  if (demo.length) await bump(name);
   return demo.length;
+}
+
+export async function deleteDemoData() {
+  const [users, notes] = await Promise.all([deleteDemo('users'), deleteDemo('announcements')]);
+  return { users, notes };
 }

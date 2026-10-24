@@ -275,21 +275,29 @@ async function renderSettings(el) {
     <p class="muted small">Technický limit úložiska je 50 MB na súbor.</p>
     <button class="btn" style="margin-top:.5rem">${icon('check', 16)} Uložiť nastavenia</button></form>
     <div class="card" style="max-width:560px"><h2>${icon('users')} Ukážkové dáta</h2>
-      <p class="muted small">Pridá 50 fiktívnych študentov s vymyslenými údajmi do registra, aby si videl, ako portál vyzerá naplnený. Nemajú prihlasovacie účty a jedným klikom ich zase zmažeš.</p>
+      <p class="muted small">Naplní portál vymyslenými údajmi, aby si videl, ako bude vyzerať. Ukážkoví študenti nemajú prihlasovacie účty. Všetky ukážkové dáta jedným klikom zase zmažeš.</p>
       <div class="row"><button class="btn ghost" id="demo-add">${icon('userPlus', 16)} Pridať 50 ukážkových študentov</button>
-        <button class="btn ghost" id="demo-del">${icon('trash', 16)} Zmazať ukážkových študentov</button></div></div>`;
-  el.querySelector('#demo-add').onclick = e => guard(async () => {
-    e.target.disabled = true;
-    const { createDemoStudents } = await import('./demo.js');
-    await createDemoStudents(50);
+        <button class="btn ghost" id="demo-notes">${icon('pin', 16)} Pridať 6 ukážkových oznamov</button>
+        <button class="btn ghost" id="demo-del">${icon('trash', 16)} Zmazať ukážkové dáta</button></div></div>`;
+  const run = (btn, fn) => guard(async () => {
+    btn.disabled = true;
+    try { await fn(await import('./demo.js')); } finally { btn.disabled = false; }
+  });
+  el.querySelector('#demo-add').onclick = e => run(e.currentTarget, async m => {
+    await m.createDemoStudents(50);
     toast('Pridaných 50 ukážkových študentov – nájdeš ich v Registri');
-    e.target.disabled = false;
   });
-  el.querySelector('#demo-del').onclick = () => guard(async () => {
-    if (!confirm('Zmazať všetkých ukážkových študentov?')) return;
-    const { deleteDemoStudents } = await import('./demo.js');
-    toast(`Zmazaných ${await deleteDemoStudents()} ukážkových študentov`);
+  el.querySelector('#demo-notes').onclick = e => run(e.currentTarget, async m => {
+    await m.createDemoAnnouncements(state.user.uid);
+    toast('Pridaných 6 ukážkových oznamov – pozri Nástenku');
   });
+  el.querySelector('#demo-del').onclick = e => {
+    if (!confirm('Zmazať všetkých ukážkových študentov aj ukážkové oznamy?')) return;
+    run(e.currentTarget, async m => {
+      const { users, notes } = await m.deleteDemoData();
+      toast(`Zmazaných ${users} ukážkových študentov a ${notes} oznamov`);
+    });
+  };
   el.querySelector('form').onsubmit = e => guard(async () => {
     e.preventDefault();
     const f = new FormData(e.target);
