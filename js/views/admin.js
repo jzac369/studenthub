@@ -485,6 +485,7 @@ async function renderSettings(el) {
       <p class="muted small">Naplní portál vymyslenými údajmi, aby si videl, ako bude vyzerať. Ukážkoví študenti nemajú prihlasovacie účty. Všetky ukážkové dáta jedným klikom zase zmažeš.</p>
       <div class="row"><button class="btn ghost" id="demo-add">${icon('userPlus', 16)} Pridať 50 ukážkových študentov</button>
         <button class="btn ghost" id="demo-notes">${icon('pin', 16)} Pridať 6 ukážkových oznamov</button>
+        <button class="btn ghost" id="demo-mat">${icon('book', 16)} Pridať 5 materiálov a 5 inzerátov</button>
         <button class="btn ghost" id="demo-del">${icon('trash', 16)} Zmazať ukážkové dáta</button></div></div>`;
   const run = (btn, fn) => guard(async () => {
     btn.disabled = true;
@@ -495,17 +496,22 @@ async function renderSettings(el) {
     logActivity('Ukážkové dáta', 'pridaných 50 študentov');
     toast('Pridaných 50 ukážkových študentov – nájdeš ich v Registri');
   });
+  el.querySelector('#demo-mat').onclick = e => run(e.currentTarget, async m => {
+    await m.createDemoMaterials();
+    logActivity('Ukážkové dáta', 'pridaných 5 materiálov a 5 inzerátov');
+    toast('Pridaných 5 materiálov a 5 inzerátov – pozri Materiály');
+  });
   el.querySelector('#demo-notes').onclick = e => run(e.currentTarget, async m => {
     await m.createDemoAnnouncements(state.user.uid);
     logActivity('Ukážkové dáta', 'pridaných 6 oznamov');
     toast('Pridaných 6 ukážkových oznamov – pozri Domov');
   });
   el.querySelector('#demo-del').onclick = e => {
-    if (!confirm('Zmazať všetkých ukážkových študentov aj ukážkové oznamy?')) return;
+    if (!confirm('Zmazať všetky ukážkové dáta (študentov, oznamy, materiály a inzeráty)?')) return;
     run(e.currentTarget, async m => {
-      const { users, notes } = await m.deleteDemoData();
-      logActivity('Ukážkové dáta', `zmazaných ${users} študentov a ${notes} oznamov`);
-      toast(`Zmazaných ${users} ukážkových študentov a ${notes} oznamov`);
+      const { users, notes, materials, market } = await m.deleteDemoData();
+      logActivity('Ukážkové dáta', `zmazaných ${users} študentov, ${notes} oznamov, ${materials} materiálov, ${market} inzerátov`);
+      toast(`Zmazané ukážkové dáta: ${users} študentov, ${notes} oznamov, ${materials} materiálov, ${market} inzerátov`);
     });
   };
   el.querySelector('form').onsubmit = e => guard(async () => {

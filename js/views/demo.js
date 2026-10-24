@@ -1,5 +1,5 @@
 // Ukážkoví študenti – iba záznamy v registri (bez prihlasovacích účtov), označené poľom demo: true
-import { db, col, doc, query, where, list, writeBatch, serverTimestamp, bump } from '../lib.js';
+import { db, state, col, doc, query, where, list, cached, writeBatch, serverTimestamp, bump, uploadFile, removeFile } from '../lib.js';
 
 const MEN = ['Adam', 'Martin', 'Peter', 'Tomáš', 'Jakub', 'Lukáš', 'Michal', 'Filip', 'Matej', 'Samuel', 'Dominik', 'Marek', 'Patrik', 'Juraj', 'Andrej', 'Erik', 'Richard', 'Daniel', 'Oliver', 'Šimon'];
 const WOMEN = ['Lucia', 'Zuzana', 'Katarína', 'Michaela', 'Simona', 'Veronika', 'Natália', 'Kristína', 'Ema', 'Nina', 'Barbora', 'Laura', 'Petra', 'Sofia', 'Dominika', 'Viktória', 'Alžbeta', 'Tereza', 'Lenka', 'Hana'];
@@ -74,7 +74,73 @@ async function deleteDemo(name) {
   return demo.length;
 }
 
+// Ukážkové študijné materiály: 3 malé textové súbory a 2 odkazy na verejné zdroje
+const MATERIALS = [
+  { title: 'Poznámky z prednášok – Makroekonómia (1.–6. týždeň)', subject: 'Makroekonómia', description: 'HDP, inflácia, nezamestnanosť, fiškálna politika – stručne a prehľadne.',
+    file: 'makroekonomia_poznamky.txt', text: 'MAKROEKONÓMIA – POZNÁMKY (ukážka)\n\n1. HDP: trhová hodnota finálnych statkov a služieb vyrobených v krajine za obdobie.\n2. Inflácia: rast cenovej hladiny, meria sa indexom spotrebiteľských cien.\n3. Nezamestnanosť: frikčná, štrukturálna, cyklická.\n4. Fiškálna politika: štátny rozpočet, dane, verejné výdavky.\n' },
+  { title: 'Vzorové otázky na skúšku z Marketingu', subject: 'Marketing', description: '30 otázok z minulých rokov aj s odpoveďami.',
+    file: 'marketing_vzorove_otazky.txt', text: 'MARKETING – VZOROVÉ OTÁZKY (ukážka)\n\n1. Vymenujte prvky marketingového mixu 4P.\n2. Čo je segmentácia trhu a podľa akých kritérií sa robí?\n3. Vysvetlite rozdiel medzi B2B a B2C marketingom.\n4. Čo je SWOT analýza?\n' },
+  { title: 'Vzorce do štatistiky – ťahák', subject: '', description: 'Priemer, rozptyl, smerodajná odchýlka, korelácia na jednej strane.',
+    file: 'statistika_vzorce.txt', text: 'ŠTATISTIKA – VZORCE (ukážka)\n\nAritmetický priemer: x̄ = Σx / n\nRozptyl: s² = Σ(x − x̄)² / (n − 1)\nSmerodajná odchýlka: s = √s²\nKorelačný koeficient: r = cov(x, y) / (sx · sy)\n' },
+  { title: 'Národná banka Slovenska – menová politika', subject: 'Makroekonómia', description: 'Oficiálne vysvetlenie menovej politiky eurozóny a úlohy NBS.',
+    url: 'https://nbs.sk/menova-politika/' },
+  { title: 'Štatistický úrad SR – aktuálne údaje', subject: '', description: 'Zdroj dát na seminárne práce: HDP, nezamestnanosť, ceny.',
+    url: 'https://slovak.statistics.sk/' },
+];
+
+// Ukážkové inzeráty v Burze kníh a skrípt
+const LISTINGS = [
+  { kind: 'sell', title: 'Marketing management', author: 'Philip Kotler, Kevin Lane Keller', price: 18, condition: 'ako nové', subject: 'Marketing', description: 'Slovenské vydanie, bez poznámok. Osobný odber v škole.' },
+  { kind: 'give', title: 'Skriptá: Úvod do štatistiky', author: 'Katedra štatistiky', price: 0, condition: 's poznámkami', subject: '', description: 'Daruje sa, vyznačené dôležité pasáže.' },
+  { kind: 'sell', title: 'Zásady ekonómie', author: 'N. Gregory Mankiw', price: 22, condition: 'používané', subject: 'Makroekonómia', description: 'Kniha je v dobrom stave, obálka mierne ohnutá.' },
+  { kind: 'want', title: 'Podnikové financie', author: 'Fetisovová a kol.', price: 0, condition: '', subject: '', description: 'Hľadám na zimný semester, môžem aj požičať.' },
+  { kind: 'sell', title: 'Zbierka príkladov z matematiky pre ekonómov', author: '', price: 6, condition: 's poznámkami', subject: '', description: 'Vyriešené príklady ceruzkou, dá sa vygumovať.' },
+];
+
+export async function createDemoMaterials() {
+  const me = state.user.uid;
+  const subjects = await cached('subjects');
+  const subject = name => subjects.find(s => s.name === name) || null;
+  // Inzeráty rozdelíme medzi ukážkových študentov, ak existujú
+  const demoUsers = (await cached('users')).filter(u => u.demo);
+  const seller = i => demoUsers[i % Math.max(1, demoUsers.length)] || { id: me, full_name: state.profile.full_name };
+
+  const batch = writeBatch(db);
+  for (const [i, m] of MATERIALS.entries()) {
+    const s = subject(m.subject);
+    const author = demoUsers[(i + 2) % Math.max(1, demoUsers.length)] || { id: me, full_name: state.profile.full_name };
+    const row = {
+      title: m.title, description: m.description, subject_id: s?.id || '', subject_name: s?.name || m.subject,
+      uploader_id: me, uploader_name: author.full_name, status: 'approved', demo: true,
+      created_at: new Date(Date.now() - (MATERIALS.length - i) * 864e5),
+      url: m.url || '', file_path: '', file_name: '', file_size: 0,
+    };
+    if (m.file) {
+      const blob = new Blob([m.text], { type: 'text/plain;charset=utf-8' });
+      row.file_path = `materials/${me}/demo_${Date.now()}_${m.file}`;
+      await uploadFile(row.file_path, new File([blob], m.file, { type: 'text/plain' }));
+      Object.assign(row, { file_name: m.file, file_size: blob.size });
+    }
+    batch.set(doc(col('materials')), row);
+  }
+  LISTINGS.forEach((l, i) => {
+    const s = subject(l.subject);
+    const who = seller(i);
+    batch.set(doc(col('market')), {
+      kind: l.kind, title: l.title, author: l.author, description: l.description, price: l.price, condition: l.condition,
+      subject_id: s?.id || '', subject_name: s?.name || l.subject, seller_id: who.id, seller_name: who.full_name,
+      status: 'active', demo: true, created_at: new Date(Date.now() - (LISTINGS.length - i) * 36e5),
+    });
+  });
+  await batch.commit();
+  await bump('materials');
+}
+
 export async function deleteDemoData() {
-  const [users, notes] = await Promise.all([deleteDemo('users'), deleteDemo('announcements')]);
-  return { users, notes };
+  const files = (await list(query(col('materials'), where('demo', '==', true)))).filter(m => m.file_path);
+  await Promise.all(files.map(m => removeFile(m.file_path).catch(() => {})));
+  const [users, notes, materials, market] = await Promise.all([
+    deleteDemo('users'), deleteDemo('announcements'), deleteDemo('materials'), deleteDemo('market'),
+  ]);
+  return { users, notes, materials, market };
 }
