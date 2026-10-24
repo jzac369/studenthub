@@ -101,7 +101,10 @@ service cloud.firestore {
                     || resource.data.uploader_id == request.auth.uid || admin());
       allow create: if approved() && request.resource.data.uploader_id == request.auth.uid
                     && (request.resource.data.status == 'pending' || admin());
-      allow update: if admin();
+      // Ktokoľvek schválený smie iba zvýšiť počítadlo stiahnutí o 1
+      allow update: if admin() || (approved() && resource.data.status == 'approved'
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['downloads'])
+                    && request.resource.data.downloads == resource.data.get('downloads', 0) + 1);
       allow delete: if admin() || (approved() && resource.data.uploader_id == request.auth.uid
                     && resource.data.status != 'approved');
     }

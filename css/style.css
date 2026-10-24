@@ -358,3 +358,4 @@ details.assign summary::-webkit-details-marker { display: none; }
 .emoji-panel .emoji:hover { background: var(--surface-2); }
 .receipt { align-self: flex-end; font-size: .72rem; color: var(--muted); display: inline-flex; align-items: center; gap: .25rem; margin: -.1rem .2rem .2rem 0; }
 .receipt.read { color: var(--primary); }
+.dl-count { white-space: nowrap; display: inline-flex; align-items: center; gap: .15rem; }

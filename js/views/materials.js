@@ -1,5 +1,5 @@
 import {
-  db, state, col, doc, query, where, list, cached, bump, addDoc, updateDoc, deleteDoc, serverTimestamp, byNewest,
+  db, state, col, doc, query, where, list, cached, bump, addDoc, updateDoc, deleteDoc, serverTimestamp, byNewest, increment,
   uploadFile, downloadFile, removeFile, logActivity, isAdmin, esc, guard, toast, modal, fmtDate, fmtSize, safeName,
   downloadBlob, icon, avatar,
 } from '../lib.js';
@@ -37,21 +37,48 @@ function materialRow(m, { mine = false, admin = false } = {}) {
     <div class="min0 grow">
       <div class="strong">${esc(m.title)} ${status}</div>
       ${m.description ? `<div class="small">${esc(m.description)}</div>` : ''}
-      <div class="muted small">${esc(m.subject_name || 'Všeobecné')} · ${esc(m.uploader_name)} · ${fmtDate(m.created_at)}${m.file_size ? ` · ${fmtSize(m.file_size)}` : ''}</div>
+      <div class="muted small">${esc(m.subject_name || 'Všeobecné')} · ${esc(m.uploader_name)} · ${fmtDate(m.created_at)}${m.file_size ? ` · ${fmtSize(m.file_size)}` : ''}
+        · <span class="dl-count" data-count="${m.id}" title="Počet stiahnutí a otvorení">${icon('download', 12)} ${m.downloads || 0}×</span></div>
     </div>
     <div class="row nowrap">
-      ${m.url ? `<a class="btn ghost sm" href="${esc(m.url)}" target="_blank" rel="noopener">${icon('external', 14)} Otvoriť</a>`
-        : `<button class="btn ghost sm" data-dl="${m.id}">${icon('download', 14)} Stiahnuť</button>`}
+      ${m.url ? `<a class="btn ghost sm" href="${esc(m.url)}" target="_blank" rel="noopener" data-link="${m.id}">${icon('external', 14)} Otvoriť</a>`
+        : `<button class="btn ghost sm" data-open="${m.id}">${icon('external', 14)} Otvoriť</button>
+           <button class="btn ghost sm" data-dl="${m.id}">${icon('download', 14)} Stiahnuť</button>`}
       ${admin ? `<button class="btn sm" data-ok="${m.id}">${icon('check', 14)} Schváliť</button><button class="btn ghost sm" data-no="${m.id}">Zamietnuť</button>` : ''}
       ${(mine && m.status !== 'approved') || isAdmin() ? `<button class="icon-btn" data-del="${m.id}" title="Zmazať">${icon('trash', 16)}</button>` : ''}
     </div></div>`;
 }
 
 function wireMaterialActions(el, items, refresh) {
+  // Počítadlo: každé otvorenie alebo stiahnutie zvýši downloads o 1
+  const count = m => {
+    if (m.status !== 'approved') return;
+    updateDoc(doc(db, 'materials', m.id), { downloads: increment(1) }).catch(() => {});
+    m.downloads = (m.downloads || 0) + 1;
+    el.querySelectorAll(`[data-count="${m.id}"]`).forEach(c => (c.innerHTML = `${icon('download', 12)} ${m.downloads}×`));
+  };
   el.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => guard(async () => {
     const m = items.find(x => x.id === b.dataset.dl);
     downloadBlob(await downloadFile(m.file_path), m.file_name);
+    count(m);
     logActivity('Stiahnutie materiálu', m.title);
+  }));
+  el.querySelectorAll('[data-open]').forEach(b => b.onclick = () => guard(async () => {
+    const m = items.find(x => x.id === b.dataset.open);
+    const win = window.open('', '_blank'); // okno otvoríme hneď pri kliknutí, inak by ho prehliadač zablokoval
+    try {
+      const blob = await downloadFile(m.file_path);
+      const url = URL.createObjectURL(blob);
+      if (win) win.location = url; else downloadBlob(blob, m.file_name);
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    } catch (e) { win?.close(); throw e; }
+    count(m);
+    logActivity('Otvorenie materiálu', m.title);
+  }));
+  el.querySelectorAll('[data-link]').forEach(a => a.addEventListener('click', () => {
+    const m = items.find(x => x.id === a.dataset.link);
+    count(m);
+    logActivity('Otvorenie materiálu', m.title);
   }));
   el.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
     const m = items.find(x => x.id === b.dataset.del);
@@ -70,7 +97,7 @@ async function renderMaterials(el) {
   const uid = state.user.uid;
   const maxMb = Number(state.settings.max_file_mb) || 30;
   const [approved, mine, subjects] = await Promise.all([
-    cached('materials'),
+    list(query(col('materials'), where('status', '==', 'approved'))),
     list(query(col('materials'), where('uploader_id', '==', uid))),
     cached('subjects'),
   ]);
