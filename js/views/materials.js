@@ -201,7 +201,7 @@ async function renderMarket(el) {
         <h3>${esc(i.title)}</h3>
         ${i.author ? `<div class="muted small">${esc(i.author)}</div>` : ''}
         ${i.description ? `<p class="small">${esc(i.description)}</p>` : ''}
-        <div class="muted small">${esc(i.subject_name || '')}${i.condition ? ` · stav: ${esc(i.condition)}` : ''}</div>
+        <div class="muted small">${[i.subject_name, i.condition && `stav: ${i.condition}`].filter(Boolean).map(esc).join(' · ')}</div>
         <div class="ad-foot">${avatar(seller, 26)}<span class="small min0 ellipsis">${esc(seller.full_name)}</span><span class="spacer"></span>
           ${mine ? `<button class="btn ghost sm" data-sold="${i.id}">${icon('check', 14)} ${i.kind === 'want' ? 'Vybavené' : 'Predané'}</button>`
             : `<button class="btn sm" data-msg="${i.seller_id}">${icon('send', 14)} Napísať</button>`}
