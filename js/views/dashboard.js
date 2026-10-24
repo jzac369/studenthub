@@ -1,4 +1,5 @@
-import { state, col, query, where, list, cached, esc, fmtDate, feature, icon, today, unreadCount } from '../lib.js';
+import { state, col, query, where, list, cached, esc, fmtDate, feature, icon, today, unreadCount, isLecturer } from '../lib.js';
+import { mySubjects, loadSubjectSubs } from './grading.js';
 import { lessonCard, lessonsOn, nextDated } from './schedule.js';
 import { mountBoard } from './board.js';
 
@@ -8,7 +9,8 @@ export default async function (root) {
   const day = today();
   const [assignments, subs, schedule] = await Promise.all([
     cached('assignments'),
-    feature('uploads_enabled') ? list(query(col('submissions'), where('student_id', '==', uid))) : [],
+    isLecturer() ? mySubjects().then(s => Promise.all(s.map(x => loadSubjectSubs(x.id)))).then(a => a.flat())
+      : feature('uploads_enabled') ? list(query(col('submissions'), where('student_id', '==', uid))) : [],
     cached('schedule'),
   ]);
   const upcoming = assignments.filter(a => a.due_date && a.due_date >= day)
@@ -25,7 +27,8 @@ export default async function (root) {
     <aside class="home-side">
       <h1>Ahoj, ${esc(firstName)}</h1>
       ${feature('messaging_enabled') ? tile('#/spravy', 'message', 'Neprečítané správy', unreadN, unreadN ? 'otvoriť správy' : 'všetko prečítané') : ''}
-      ${feature('uploads_enabled') ? tile('#/prace', 'file', 'Moje odovzdané práce', subs.length, `odoslané lektorovi: ${subs.filter(s => s.status === 'forwarded').length}`) : ''}
+      ${isLecturer() ? tile('#/hodnotenie', 'award', 'Práce na hodnotenie', subs.filter(s => !s.review_status).length, `nové: ${subs.filter(s => !s.lecturer_seen_at).length} · spolu ${subs.length}`)
+        : feature('uploads_enabled') ? tile('#/prace', 'file', 'Moje odovzdané práce', subs.length, `ohodnotené: ${subs.filter(s => s.review_status).length} · odoslané lektorovi: ${subs.filter(s => s.status === 'forwarded').length}`) : ''}
       <div class="card"><h2>${icon('calendar')} Dnes</h2>
         ${todays.length ? todays.map(l => lessonCard(l)).join('')
           : `<p class="muted">Dnes nemáš žiadne hodiny.</p>${next.length ? `<div class="muted small" style="margin:.4rem 0">Najbližšia výučba:</div>${next.map(l => lessonCard(l, { showDate: true })).join('')}` : ''}`}

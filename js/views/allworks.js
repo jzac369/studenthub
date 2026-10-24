@@ -1,11 +1,11 @@
 import {
-  col, list, cached, toDate, byNewest, downloadFile, logActivity, esc, guard, toast, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon, avatar,
+  col, list, cached, toDate, byNewest, downloadFile, logActivity, esc, guard, toast, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon, avatar, isStudent,
 } from '../lib.js';
 
 // Všetky práce (iba admini): študenti × predmety, zelená fajka = študent z predmetu odovzdal prácu
 export default async function renderAllWorks(el) {
   const [users, subjects, subs] = await Promise.all([cached('users'), cached('subjects'), list(col('submissions'))]);
-  const students = users.filter(u => u.approved && u.role !== 'admin').sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
+  const students = users.filter(u => u.approved && isStudent(u)).sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   subs.sort(byNewest);
   // Posledná práca každého študenta v každom predmete
@@ -32,7 +32,7 @@ export default async function renderAllWorks(el) {
       }).join('')}</tr></thead><tbody id="rows"></tbody></table></div>
       ${subjects.length ? '' : '<p class="muted">Zatiaľ nie sú zadané žiadne predmety.</p>'}
       <div class="progress hidden" id="prog"><div></div></div>
-      <p class="muted small" style="margin:.75rem 0 0">${icon('check', 13)} = práca odovzdaná (kliknutím ju stiahneš), fajka v krúžku = už odoslaná lektorovi, – = chýba. Hromadné preposlanie lektorovi a označenie ako odoslané nájdeš v Administrácia → Práce a preposielanie.</p>
+      <p class="muted small" style="margin:.75rem 0 0">${icon('check', 13)} = práca odovzdaná (kliknutím ju stiahneš), fajka v krúžku = už odoslaná lektorovi, písmeno = známka od lektora, oranžová = vrátená na prepracovanie, – = chýba. Hromadné preposlanie lektorovi a označenie ako odoslané nájdeš v Administrácia → Práce a preposielanie.</p>
     </div>`;
 
   const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -46,8 +46,9 @@ export default async function renderAllWorks(el) {
         const r = latest.get(`${s.id}|${subj.id}`);
         if (!r) return '<td class="mx-cell"><span class="mx-miss">–</span></td>';
         const n = count.get(`${s.id}|${subj.id}`);
-        return `<td class="mx-cell"><button class="mx-ok ${r.status === 'forwarded' ? 'sent' : ''}" data-dl="${r.id}"
-          title="${esc(r.title)} · ${esc(r.file_name)} · ${fmtDateTime(r.created_at)}${r.status === 'forwarded' ? ' · odoslané lektorovi' : ''}${n > 1 ? ` · spolu ${n} práce` : ''}">${icon('check', 16)}</button></td>`;
+        const graded = r.review_status === 'reviewed' && r.grade;
+        return `<td class="mx-cell"><button class="mx-ok ${r.status === 'forwarded' ? 'sent' : ''} ${graded ? 'graded' : ''} ${r.review_status === 'returned' ? 'returned' : ''}" data-dl="${r.id}"
+          title="${esc(r.title)} · ${esc(r.file_name)} · ${fmtDateTime(r.created_at)}${r.status === 'forwarded' ? ' · odoslané lektorovi' : ''}${r.review_status ? ` · ${r.review_status === 'returned' ? 'vrátené na prepracovanie' : 'ohodnotené'}${r.grade ? ' ' + esc(r.grade) : ''}` : ''}${n > 1 ? ` · spolu ${n} práce` : ''}">${graded ? esc(r.grade.length > 2 ? r.grade[0].toUpperCase() : r.grade) : icon('check', 16)}</button></td>`;
       }).join('')}</tr>`).join('') || `<tr><td colspan="${subjects.length + 1}" class="muted">Nikto nevyhovuje filtru.</td></tr>`;
     el.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => guard(async () => {
       const r = subs.find(x => x.id === b.dataset.dl);

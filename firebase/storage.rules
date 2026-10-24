@@ -11,13 +11,29 @@ service firebase.storage {
     }
     function approved() { return request.auth != null && profile().approved == true; }
     function admin() { return approved() && profile().role == 'admin'; }
+    function teaches(subj) { return approved() && profile().role == 'lecturer' && subj in profile().get('subjects', []); }
 
-    // Každý študent má vlastný priečinok submissions/<uid>/; cudzie súbory vidí iba admin
+    // Staršie práce (bez priečinka predmetu): študent a admin
     match /submissions/{uid}/{file} {
       allow read: if approved() && (request.auth.uid == uid || admin());
       allow create: if approved() && request.auth.uid == uid
                     && request.resource.size <= 50 * 1024 * 1024;
       allow delete: if approved() && (request.auth.uid == uid || admin());
+    }
+
+    // Práce submissions/<uid>/<predmet>/: študent, admin a lektor daného predmetu
+    match /submissions/{uid}/{subj}/{file} {
+      allow read: if approved() && (request.auth.uid == uid || admin() || teaches(subj));
+      allow create: if approved() && request.auth.uid == uid
+                    && request.resource.size <= 50 * 1024 * 1024;
+      allow delete: if approved() && (request.auth.uid == uid || admin());
+    }
+
+    // Súbory od lektora k hodnoteniu reviews/<študent>/<predmet>/
+    match /reviews/{uid}/{subj}/{file} {
+      allow read: if approved() && (request.auth.uid == uid || admin() || teaches(subj));
+      allow create: if teaches(subj) && request.resource.size <= 50 * 1024 * 1024;
+      allow delete: if admin() || teaches(subj);
     }
 
     // Študijné materiály: nahráva sa do vlastného priečinka, čítať môže každý schválený používateľ

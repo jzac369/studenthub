@@ -28,6 +28,10 @@ export const storage = getStorage(app);
 
 export const state = { user: null, profile: null, settings: {}, people: new Map(), convs: [] };
 export const isAdmin = () => state.profile?.role === 'admin';
+export const isLecturer = () => state.profile?.role === 'lecturer';
+// Študent = ani admin, ani lektor (starší účty nemusia mať rolu vyplnenú)
+export const isStudent = u => (u?.role || 'student') === 'student';
+export const ROLE_LABEL = { student: 'Študent', lecturer: 'Lektor', admin: 'Administrátor' };
 export const feature = key => state.settings[key] !== false;
 
 // Druhá inštancia Firebase len na zakladanie účtov adminom – admin sa tým neodhlási

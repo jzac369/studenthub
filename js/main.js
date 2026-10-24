@@ -1,5 +1,5 @@
 import {
-  auth, db, state, configured, $, $$, esc, icon, isAdmin, feature, initials, toggleTheme, loadPeople, loadSettings,
+  auth, db, state, configured, $, $$, esc, icon, isAdmin, ROLE_LABEL, feature, initials, toggleTheme, loadPeople, loadSettings,
   watchVersions, clearCache, playChime, toDate, startPresence, stopPresence, avatar, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
 } from './lib.js';
 import { logo } from './icons.js';
@@ -8,14 +8,18 @@ import { renderAuth, renderPending, signupDone } from './auth.js';
 const NAV = [
   { key: '',         label: 'Domov',         icon: 'home',     load: () => import('./views/dashboard.js') },
   { key: 'rozvrh',   label: 'Rozvrh',        icon: 'calendar', load: () => import('./views/schedule.js') },
-  { key: 'prace',    label: 'Moje práce',    icon: 'upload',   load: () => import('./views/submissions.js'), feature: 'uploads_enabled' },
+  { key: 'prace',    label: 'Moje práce',    icon: 'upload',   load: () => import('./views/submissions.js'), feature: 'uploads_enabled', roles: ['student', 'admin'] },
+  { key: 'hodnotenie', label: 'Hodnotenie prác', icon: 'award', load: () => import('./views/grading.js'), roles: ['lecturer'] },
   { key: 'materialy', label: 'Materiály',     icon: 'book',     load: () => import('./views/materials.js') },
   { key: 'spravy',   label: 'Správy',        icon: 'message',  load: () => import('./views/messages.js'), feature: 'messaging_enabled', badge: true },
-  { key: 'register', label: 'Register',      icon: 'users',    load: () => import('./views/register.js'), feature: 'register_enabled' },
+  { key: 'register', label: 'Register',      icon: 'users',    load: () => import('./views/register.js'), feature: 'register_enabled', roles: ['student', 'admin'] },
   { key: 'profil',   label: 'Môj profil',    icon: 'user',     load: () => import('./views/profile.js') },
   { key: 'admin',    label: 'Administrácia', icon: 'shield',   load: () => import('./views/admin.js'), admin: true },
   { key: 'log',      label: 'Log',           icon: 'activity', load: () => import('./views/log.js'), admin: true },
 ];
+
+// Admin vidí iba položky označené admin, lektor a študent iba položky pre svoju rolu
+const allowed = n => (!n.admin || isAdmin()) && (!n.roles || n.roles.includes(state.profile?.role || 'student'));
 
 const app = $('#app');
 let cleanup = null;
@@ -86,14 +90,14 @@ function teardown() {
 
 function renderShell() {
   const p = state.profile;
-  const items = NAV.filter(n => (!n.admin || isAdmin()) && (!n.feature || feature(n.feature)));
+  const items = NAV.filter(n => allowed(n) && (!n.feature || feature(n.feature)));
   app.innerHTML = `<div class="shell">
     <aside class="side">
       <div class="logo">${logo(25, true)}</div>
       <nav class="nav">${items.map(n => `<a href="#/${n.key}" data-key="${n.key}">${icon(n.icon)}<span>${n.label}</span>${n.badge ? '<span class="count hidden" id="unread"></span>' : ''}</a>`).join('')}</nav>
       <div class="side-foot">
         <div class="me">${avatar(p, 34)}
-          <div class="min0"><div class="strong ellipsis">${esc(p.full_name)}</div><div class="muted small">${isAdmin() ? 'Administrátor' : 'Študent'}</div></div></div>
+          <div class="min0"><div class="strong ellipsis">${esc(p.full_name)}</div><div class="muted small">${ROLE_LABEL[p.role] || ROLE_LABEL.student}</div></div></div>
         <div class="row"><button class="btn ghost sm" id="theme" title="Prepnúť tmavý režim">${icon('moon', 15)} Režim</button>
           <button class="btn ghost sm" id="logout">${icon('logout', 15)} Odhlásiť</button></div>
         <p class="powered left">Powered by <b>DigiStart ADV</b><br><a href="privacy.html">Ochrana súkromia</a></p>
@@ -156,7 +160,7 @@ async function route() {
   cleanup?.();
   cleanup = null;
   $$('.nav a').forEach(a => a.classList.toggle('active', a.dataset.key === item.key));
-  if (item.admin && !isAdmin()) return void (location.hash = '#/');
+  if (!allowed(item)) return void (location.hash = '#/');
   if (item.feature && !feature(item.feature)) {
     root.innerHTML = `<div class="card">Táto funkcia je momentálne vypnutá administrátorom.</div>`;
     return;

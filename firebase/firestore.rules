@@ -9,6 +9,11 @@ service cloud.firestore {
     function userDoc() { return /databases/$(database)/documents/users/$(request.auth.uid); }
     function approved() { return signedIn() && exists(userDoc()) && get(userDoc()).data.approved == true; }
     function admin() { return approved() && get(userDoc()).data.role == 'admin'; }
+    // Lektor vidí a hodnotí iba práce z predmetov, ktoré mu priradil admin
+    function teaches(subjectId) {
+      return approved() && get(userDoc()).data.role == 'lecturer'
+        && subjectId in get(userDoc()).data.get('subjects', []);
+    }
     // Funkcia je zapnutá, kým ju admin v nastaveniach nevypne
     function enabled(key) {
       let s = /databases/$(database)/documents/settings/app;
@@ -121,13 +126,22 @@ service cloud.firestore {
 
     // ---------- Odovzdané práce ----------
     match /submissions/{id} {
-      allow read: if approved() && (resource.data.student_id == request.auth.uid || admin());
+      allow read: if approved() && (resource.data.student_id == request.auth.uid || admin()
+                    || teaches(resource.data.subject_id));
       allow create: if approved() && enabled('uploads_enabled')
                     && request.resource.data.student_id == request.auth.uid
-                    && request.resource.data.status == 'submitted';
-      allow update: if admin();
+                    && request.resource.data.status == 'submitted'
+                    && !('review_status' in request.resource.data);
+      // Lektor zapisuje iba hodnotenie a príznak „stiahnuté“
+      allow update: if admin() || (teaches(resource.data.subject_id)
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+                         'grade', 'feedback', 'review_status', 'reviewed_at', 'reviewer_id', 'reviewer_name',
+                         'review_file_path', 'review_file_name', 'review_file_size', 'lecturer_seen_at'])
+                    && request.resource.data.get('review_status', 'reviewed') in ['reviewed', 'returned']
+                    && request.resource.data.get('feedback', '').size() <= 4000);
+      // Študent môže zmazať iba prácu, ktorá ešte nebola odoslaná ani ohodnotená
       allow delete: if admin() || (approved() && resource.data.student_id == request.auth.uid
-                    && resource.data.status == 'submitted');
+                    && resource.data.status == 'submitted' && !('review_status' in resource.data));
     }
 
     // ---------- Správy ----------

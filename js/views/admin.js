@@ -1,7 +1,7 @@
 import {
   app, db, state, col, doc, query, where, orderBy, limit, list, cached, bump, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
   increment, toDate, byNewest, createUserWithEmailAndPassword, signOut, getHelperAuth, downloadFile, removeFile, loadSettings,
-  DEFAULT_SETTINGS, quotaUsage, QUOTA, WARN_AT, PROJECT_ID, logActivity,
+  DEFAULT_SETTINGS, isStudent, ROLE_LABEL, quotaUsage, QUOTA, WARN_AT, PROJECT_ID, logActivity,
   esc, guard, toast, modal, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon,
 } from '../lib.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-functions.js';
@@ -49,7 +49,7 @@ async function renderOverview(el) {
   const stats = statsSnap.exists() ? statsSnap.data() : await recalcStats();
   const usage = usageSnap.data() || {};
   const quotas = quotaUsage(stats, usage);
-  const students = [...state.people.values()].filter(p => p.role !== 'admin').length;
+  const students = [...state.people.values()].filter(isStudent).length;
 
   el.innerHTML = `<div class="grid">
     <div class="card"><h2>${icon('activity')} Bezplatné limity Firebase</h2>
@@ -97,7 +97,7 @@ async function renderStats(el) {
     cached('users'), cached('subjects'), cached('assignments'), list(col('submissions')),
     list(query(col('materials'), where('status', '==', 'pending'))), list(query(col('market'), where('status', '==', 'active'))),
   ]);
-  const students = users.filter(u => u.approved && u.role !== 'admin').sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
+  const students = users.filter(u => u.approved && isStudent(u)).sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
   const todayIso = new Date().toLocaleDateString('sv-SE');
   const dayOf = r => toDate(r.created_at)?.toLocaleDateString('sv-SE') || '';
   const late = subs.filter(r => r.due_date && dayOf(r) > r.due_date);
@@ -189,20 +189,25 @@ async function renderStats(el) {
 
 // ---------------------------------------------------------------- Používatelia
 async function renderUsers(el) {
-  const users = (await list(col('users'))).sort((a, b) => (a.approved - b.approved) || a.full_name.localeCompare(b.full_name, 'sk'));
+  const [users, subjects] = await Promise.all([list(col('users')), cached('subjects')]);
+  users.sort((a, b) => (a.approved - b.approved) || a.full_name.localeCompare(b.full_name, 'sk'));
+  subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
+  const subjName = id => subjects.find(s => s.id === id)?.name || '?';
   const pending = users.filter(u => !u.approved).length;
   el.innerHTML = `
     <div class="row" style="margin-bottom:1rem"><span class="muted">${users.length} účtov · ${pending} čaká na schválenie</span>
-      <span class="spacer"></span><input id="q" placeholder="Hľadať…" style="max-width:220px"><button class="btn" id="add">${icon('userPlus', 16)} Pridať študenta</button></div>
+      <span class="spacer"></span><input id="q" placeholder="Hľadať…" style="max-width:220px"><button class="btn ghost" id="add-lect">${icon('userPlus', 16)} Pridať lektora</button><button class="btn" id="add">${icon('userPlus', 16)} Pridať študenta</button></div>
     <div class="card"><div class="table-wrap"><table><thead><tr><th>Meno</th><th>Kontakt</th><th>Mesto</th><th>Rola</th><th>Stav</th><th>Akcie</th></tr></thead>
     <tbody>${users.map(u => `<tr data-n="${esc(`${u.full_name} ${u.email}`.toLowerCase())}">
       <td><strong>${esc(u.full_name || '—')}</strong><div class="muted small">od ${fmtDate(u.created_at)}</div></td>
       <td>${esc(u.email)}<div class="muted small">${esc(u.phone)}</div></td><td>${esc(u.city)}</td>
-      <td>${u.role === 'admin' ? '<span class="badge pri">admin</span>' : 'študent'}${u.demo ? ' <span class="badge">ukážka</span>' : ''}</td>
+      <td>${u.role === 'admin' ? '<span class="badge pri">admin</span>' : u.role === 'lecturer' ? '<span class="badge ok">lektor</span>' : 'študent'}${u.demo ? ' <span class="badge">ukážka</span>' : ''}
+        ${u.role === 'lecturer' ? `<div class="muted small">${(u.subjects || []).map(subjName).map(esc).join(', ') || 'bez predmetov'}</div>` : ''}</td>
       <td>${u.approved ? '<span class="badge ok">aktívny</span>' : '<span class="badge warn">čaká</span>'}</td>
       <td class="nowrap-cell">${u.id === state.user.uid ? '<span class="muted small">to si ty</span>' : `
         <button class="btn sm ${u.approved ? 'ghost' : ''}" data-approve="${u.id}" data-v="${!u.approved}">${u.approved ? 'Deaktivovať' : `${icon('check', 14)} Schváliť`}</button>
-        <button class="btn sm ghost" data-role="${u.id}" data-v="${u.role === 'admin' ? 'student' : 'admin'}">${u.role === 'admin' ? 'Odobrať admina' : 'Urobiť adminom'}</button>`}</td>
+        <select class="role-select" data-role="${u.id}" title="Rola">${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${(u.role || 'student') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
+        ${u.role === 'lecturer' ? `<button class="btn sm ghost" data-subj="${u.id}">${icon('book', 14)} Predmety</button>` : ''}`}</td>
     </tr>`).join('')}</tbody></table></div></div>`;
 
   el.querySelector('#q').oninput = e => {
@@ -216,15 +221,18 @@ async function renderUsers(el) {
     await bump('users');
     renderUsers(el);
   }));
-  el.querySelectorAll('[data-role]').forEach(b => b.onclick = () => guard(async () => {
-    if (b.dataset.v === 'admin' && !confirm('Tento používateľ získa plný prístup k administrácii. Pokračovať?')) return;
-    await updateDoc(doc(db, 'users', b.dataset.role), { role: b.dataset.v });
-    const who = users.find(x => x.id === b.dataset.role);
-    logActivity(b.dataset.v === 'admin' ? 'Pridelenie roly admin' : 'Odobratie roly admin', `${who?.full_name} (${who?.email})`);
+  el.querySelectorAll('[data-role]').forEach(s => s.onchange = () => guard(async () => {
+    const who = users.find(x => x.id === s.dataset.role);
+    if (s.value === 'admin' && !confirm('Tento používateľ získa plný prístup k administrácii. Pokračovať?')) return void (s.value = who.role || 'student');
+    await updateDoc(doc(db, 'users', who.id), { role: s.value });
+    logActivity('Zmena roly', `${who.full_name} (${who.email}): ${ROLE_LABEL[who.role || 'student']} → ${ROLE_LABEL[s.value]}`);
     await bump('users');
+    if (s.value === 'lecturer') return pickSubjects({ ...who, role: 'lecturer' }, subjects, () => renderUsers(el));
     renderUsers(el);
   }));
+  el.querySelectorAll('[data-subj]').forEach(b => b.onclick = () => pickSubjects(users.find(x => x.id === b.dataset.subj), subjects, () => renderUsers(el)));
   el.querySelector('#add').onclick = () => addStudent(() => renderUsers(el));
+  el.querySelector('#add-lect').onclick = () => addStudent(() => renderUsers(el), subjects);
 }
 
 function randomPassword() {
@@ -232,25 +240,48 @@ function randomPassword() {
   return [...crypto.getRandomValues(new Uint32Array(10))].map(n => chars[n % chars.length]).join('');
 }
 
-function addStudent(done) {
-  const m = modal('Pridať študenta', `<form>
-    <label>Meno a priezvisko</label><input name="full_name" required>
+// Výber predmetov, ktorých práce lektor uvidí a hodnotí
+const subjectChecks = (subjects, picked = []) => `<div class="checks">${subjects.map(s => `<label class="check"><input type="checkbox" name="subj" value="${s.id}" ${picked.includes(s.id) ? 'checked' : ''}> ${esc(s.name)}</label>`).join('')
+  || '<p class="muted small">Najprv pridaj predmety v časti Predmety a termíny.</p>'}</div>`;
+
+function pickSubjects(u, subjects, done) {
+  const m = modal(`Predmety lektora – ${esc(u.full_name)}`, `<form>
+    <p class="muted small">Lektor uvidí iba práce z vybraných predmetov – môže si ich pozrieť, stiahnuť a ohodnotiť.</p>
+    ${subjectChecks(subjects, u.subjects || [])}
+    <div class="actions"><button type="button" class="btn ghost" data-close>Zrušiť</button><button class="btn">Uložiť</button></div></form>`);
+  m.el.querySelector('form').onsubmit = e => guard(async () => {
+    e.preventDefault();
+    const picked = new FormData(e.target).getAll('subj');
+    await updateDoc(doc(db, 'users', u.id), { subjects: picked });
+    logActivity('Predmety lektora', `${u.full_name}: ${picked.map(id => subjects.find(s => s.id === id)?.name).join(', ') || '—'}`);
+    await bump('users');
+    m.close();
+    done();
+  });
+}
+
+function addStudent(done, lecturerSubjects = null) {
+  const lect = !!lecturerSubjects;
+  const m = modal(lect ? 'Pridať lektora' : 'Pridať študenta', `<form>
+    <label>Meno a priezvisko${lect ? ' (s titulmi)' : ''}</label><input name="full_name" required>
     <label>E-mail</label><input name="email" type="email" required>
-    <div class="row nowrap"><div class="grow"><label>Telefón</label><input name="phone" type="tel"></div><div class="grow"><label>Mesto</label><input name="city"></div></div>
-    <p class="muted small">Vygenerujeme dočasné heslo, ktoré študentovi pošleš. Po prihlásení si ho zmení v profile.</p>
+    <div class="row nowrap"><div class="grow"><label>Telefón</label><input name="phone" type="tel"></div><div class="grow"><label>${lect ? 'Pracovisko' : 'Mesto'}</label><input name="city"></div></div>
+    ${lect ? `<label>Predmety, ktoré lektor hodnotí</label>${subjectChecks(lecturerSubjects)}` : ''}
+    <p class="muted small">Vygenerujeme dočasné heslo, ktoré ${lect ? 'lektorovi' : 'študentovi'} pošleš. Po prihlásení si ho zmení v profile.</p>
     <div class="actions"><button type="button" class="btn ghost" data-close>Zrušiť</button><button class="btn">Vytvoriť účet</button></div></form>`);
   m.el.querySelector('form').onsubmit = e => guard(async () => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
+    const subjectIds = new FormData(e.target).getAll('subj');
     const password = randomPassword();
     const helper = getHelperAuth();
     const cred = await createUserWithEmailAndPassword(helper, f.email.trim(), password);
     await signOut(helper);
     await setDoc(doc(db, 'users', cred.user.uid), {
       full_name: f.full_name.trim(), email: cred.user.email, phone: f.phone.trim(), city: f.city.trim(),
-      role: 'student', approved: true, created_at: serverTimestamp(),
+      role: lect ? 'lecturer' : 'student', approved: true, created_at: serverTimestamp(), ...(lect ? { subjects: subjectIds } : {}),
     });
-    logActivity('Pridanie študenta', `${f.full_name.trim()} (${cred.user.email})`);
+    logActivity(lect ? 'Pridanie lektora' : 'Pridanie študenta', `${f.full_name.trim()} (${cred.user.email})`);
     await bump('users');
     m.el.innerHTML = `<p>Účet pre <strong>${esc(f.full_name)}</strong> je vytvorený a schválený.</p>
       <p>E-mail: <strong>${esc(cred.user.email)}</strong><br>Dočasné heslo: <code class="pw">${password}</code></p>
@@ -313,7 +344,7 @@ async function renderForward(el) {
         <td>${esc(r.title)}<div class="muted small">${esc(r.file_name)} · ${fmtSize(r.file_size)}</div>${r.note ? `<div class="small muted">Poznámka: ${esc(r.note)}</div>` : ''}</td>
         <td>${esc(r.subject_name || '—')}<div class="muted small">${esc(r.assignment_title)}</div></td>
         <td>${fmtDateTime(r.created_at)}${r.due_date && toDate(r.created_at).toLocaleDateString('sv-SE') > r.due_date ? '<br><span class="badge warn">po termíne</span>' : ''}</td>
-        <td>${r.status === 'forwarded' ? `<span class="badge ok">odoslané ${fmtDate(r.forwarded_at)}</span>` : '<span class="badge pri">nové</span>'}</td>
+        <td>${r.status === 'forwarded' ? `<span class="badge ok">odoslané ${fmtDate(r.forwarded_at)}</span>` : '<span class="badge pri">nové</span>'}${r.review_status ? `<div class="small muted">${r.review_status === 'returned' ? 'vrátené' : 'hodnotenie'}${r.grade ? ': ' + esc(r.grade) : ''}</div>` : ''}</td>
         <td><button class="icon-btn" data-dl="${r.id}" title="Stiahnuť">${icon('download', 17)}</button></td></tr>`).join('')}</tbody></table>`
       : '<p class="muted">Žiadne práce pre zvolený filter.</p>';
     box.querySelector('#pickall')?.addEventListener('change', e => {
@@ -391,6 +422,7 @@ async function renderForward(el) {
     try {
       for (const [i, r] of s.entries()) {
         await removeFile(r.file_path).catch(e => { if (e.code !== 'storage/object-not-found') throw e; });
+        if (r.review_file_path) await removeFile(r.review_file_path).catch(() => {});
         await deleteDoc(doc(db, 'submissions', r.id));
         prog.firstElementChild.style.width = `${((i + 1) / s.length) * 100}%`;
       }

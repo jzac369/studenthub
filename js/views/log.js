@@ -14,7 +14,7 @@ export default async function (root) {
     <div class="card">
       <div class="row" style="margin-bottom:.75rem">
         <input id="q" placeholder="Hľadať meno, e-mail, akciu, detail…" style="flex:2;min-width:200px">
-        <select id="who" style="flex:1;min-width:150px"><option value="">Všetci</option><option value="student">Iba študenti</option><option value="admin">Iba admini</option></select>
+        <select id="who" style="flex:1;min-width:150px"><option value="">Všetci</option><option value="student">Iba študenti</option><option value="lecturer">Iba lektori</option><option value="admin">Iba admini</option></select>
         <select id="what" style="flex:1;min-width:150px"><option value="">Všetky akcie</option></select>
       </div>
       <div class="table-wrap"><table><thead><tr><th>Čas</th><th>Používateľ</th><th>Akcia</th><th>Detail</th><th>Zariadenie</th></tr></thead><tbody id="rows"></tbody></table></div>
@@ -44,7 +44,7 @@ export default async function (root) {
       && norm(`${i.name} ${i.email} ${i.action} ${i.detail}`).includes(q));
     root.querySelector('#rows').innerHTML = filtered.map(i => `<tr>
       <td class="nowrap-cell">${fmtDateTime(i.at)}</td>
-      <td><strong>${esc(i.name || '—')}</strong>${i.role === 'admin' ? ' <span class="badge pri">admin</span>' : ''}<div class="muted small">${esc(i.email)}</div></td>
+      <td><strong>${esc(i.name || '—')}</strong>${i.role === 'admin' ? ' <span class="badge pri">admin</span>' : i.role === 'lecturer' ? ' <span class="badge ok">lektor</span>' : ''}<div class="muted small">${esc(i.email)}</div></td>
       <td>${esc(i.action)}</td>
       <td class="small">${esc(i.detail)}</td>
       <td class="muted small">${esc(i.device || '')}</td></tr>`).join('')

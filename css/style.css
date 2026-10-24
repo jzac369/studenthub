@@ -373,3 +373,14 @@ details.assign summary::-webkit-details-marker { display: none; }
 .mx-ok:hover { background: var(--success); color: #fff; }
 .mx-ok.sent { box-shadow: 0 0 0 2px var(--success) inset; }
 .mx-miss { color: var(--muted); opacity: .6; }
+
+/* --- lektori a hodnotenie prác --- */
+.role-select { width: auto; padding: .3rem .5rem; font-size: .85rem; }
+.checks { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: .25rem 1rem; margin: .25rem 0 .5rem; }
+.mx-ok.graded { font-weight: 800; font-size: .8rem; }
+.mx-ok.returned { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+.missing-row td { opacity: .75; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 280px; }
+.feedback { white-space: pre-wrap; background: var(--surface-2); border-radius: 10px; padding: .75rem 1rem; }
+.link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: .25rem; margin-top: .3rem; }
+.link-btn:hover { text-decoration: underline; }

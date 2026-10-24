@@ -1,16 +1,18 @@
+import { reviewBadge, renderGrading } from './grading.js';
 import {
   db, state, col, doc, query, where, list, cached, addDoc, deleteDoc, serverTimestamp, toDate, byNewest,
-  uploadFile, downloadFile, removeFile, adjustStats, logActivity, isAdmin, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon,
+  uploadFile, downloadFile, removeFile, adjustStats, logActivity, isAdmin, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon, modal,
 } from '../lib.js';
 
 export const ALLOWED = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg'];
 
-export default async function (root, [tab] = []) {
-  // Admini majú navyše kartu Všetky práce (prehľad študentov × predmetov)
-  const tabs = isAdmin() ? `<div class="tabs"><a href="#/prace" class="${tab === 'vsetky' ? '' : 'active'}">${icon('upload', 15)} Moje práce</a>
-    <a href="#/prace/vsetky" class="${tab === 'vsetky' ? 'active' : ''}">${icon('users', 15)} Všetky práce</a></div>` : '';
-  if (isAdmin() && tab === 'vsetky') {
+export default async function (root, [tab, sub] = []) {
+  // Admini majú navyše kartu Všetky práce (prehľad študentov × predmetov) a Hodnotenie (pohľad lektora)
+  const tabLink = (key, ic, label) => `<a href="#/prace${key ? '/' + key : ''}" class="${(tab || '') === key ? 'active' : ''}">${icon(ic, 15)} ${label}</a>`;
+  const tabs = isAdmin() ? `<div class="tabs">${tabLink('', 'upload', 'Moje práce')}${tabLink('vsetky', 'users', 'Všetky práce')}${tabLink('hodnotenie', 'award', 'Hodnotenie')}</div>` : '';
+  if (isAdmin() && (tab === 'vsetky' || tab === 'hodnotenie')) {
     root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} Práce</h1></div>${tabs}<div id="all">Načítavam…</div>`;
+    if (tab === 'hodnotenie') return renderGrading(root.querySelector('#all'), sub, '#/prace/hodnotenie');
     return (await import('./allworks.js')).default(root.querySelector('#all'));
   }
   const uid = state.user.uid;
@@ -64,8 +66,9 @@ export default async function (root, [tab] = []) {
     const bar = prog.firstElementChild;
     btn.disabled = true;
     prog.classList.remove('hidden');
-    const path = `submissions/${uid}/${Date.now()}_${safeName(file.name)}`;
     const subject = subjects.find(s => s.id === el.subject_id.value);
+    // Priečinok podľa predmetu – lektor predmetu tak smie súbor otvoriť
+    const path = `submissions/${uid}/${subject.id}/${Date.now()}_${safeName(file.name)}`;
     const assignment = assignments.find(a => a.id === el.assignment_id.value);
     try {
       await uploadFile(path, file, p => (bar.style.width = `${Math.round(p * 100)}%`));
@@ -106,15 +109,30 @@ export default async function (root, [tab] = []) {
         return `<tr><td><strong>${esc(r.title)}</strong><div class="muted small">${esc(r.file_name)} · ${fmtSize(r.file_size)}</div></td>
         <td>${esc(r.subject_name || '—')}<div class="muted small">${esc(r.assignment_title)}</div></td>
         <td>${fmtDateTime(r.created_at)}${late ? '<br><span class="badge warn">po termíne</span>' : ''}</td>
-        <td>${r.status === 'forwarded' ? `<span class="badge ok">odoslané lektorovi</span><div class="muted small">${fmtDate(r.forwarded_at)}</div>` : '<span class="badge pri">odovzdané</span>'}</td>
+        <td>${r.review_status ? `${reviewBadge(r)}<div><button class="link-btn small" data-fb="${r.id}">${icon('message', 13)} Spätná väzba</button></div>`
+          : r.status === 'forwarded' ? `<span class="badge ok">odoslané lektorovi</span><div class="muted small">${fmtDate(r.forwarded_at)}</div>` : '<span class="badge pri">odovzdané</span>'}</td>
         <td class="nowrap-cell"><button class="icon-btn" data-dl="${r.id}" title="Stiahnuť">${icon('download', 17)}</button>
-          ${r.status === 'submitted' ? `<button class="icon-btn" data-del="${r.id}" title="Zmazať">${icon('trash', 17)}</button>` : ''}</td></tr>`;
+          ${r.status === 'submitted' && !r.review_status ? `<button class="icon-btn" data-del="${r.id}" title="Zmazať">${icon('trash', 17)}</button>` : ''}</td></tr>`;
       }).join('')}</tbody></table>`;
     box.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => guard(async () => {
       const r = items.find(x => x.id === b.dataset.dl);
       downloadBlob(await downloadFile(r.file_path), r.file_name);
       logActivity('Stiahnutie vlastnej práce', r.file_name);
     }));
+    box.querySelectorAll('[data-fb]').forEach(b => b.onclick = () => {
+      const r = items.find(x => x.id === b.dataset.fb);
+      const m = modal('Hodnotenie práce', `<p style="margin-top:0"><strong>${esc(r.title)}</strong><br><span class="muted small">${esc(r.subject_name)}</span></p>
+        <p>${reviewBadge(r)}</p>
+        ${r.feedback ? `<div class="feedback">${esc(r.feedback)}</div>` : '<p class="muted">Lektor nepripísal komentár.</p>'}
+        <p class="muted small">${esc(r.reviewer_name || 'Lektor')} · ${fmtDateTime(r.reviewed_at)}</p>
+        ${r.review_file_path ? `<button class="btn ghost" id="rf">${icon('download', 15)} ${esc(r.review_file_name)}</button>` : ''}
+        ${r.review_status === 'returned' ? '<p class="small">Práca bola vrátená na prepracovanie – opravenú verziu odovzdaj ako novú prácu z rovnakého predmetu.</p>' : ''}
+        <div class="actions"><button class="btn" data-close>Zavrieť</button></div>`);
+      m.el.querySelector('#rf')?.addEventListener('click', () => guard(async () => {
+        downloadBlob(await downloadFile(r.review_file_path), r.review_file_name);
+        logActivity('Stiahnutie súboru od lektora', r.review_file_name);
+      }));
+    });
     box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
       const r = items.find(x => x.id === b.dataset.del);
       if (!confirm(`Zmazať prácu „${r.title}“?`)) return;
