@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="sk">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Zásady ochrany súkromia – StudentHUB</title>
+  <link rel="icon" href="icons/icon-192.png">
+  <style>
+    :root { --text: #1c1e2b; --muted: #5d6178; --bg: #f4f6fb; --card: #fff; --primary: #0b4fd6; --border: #e2e4ef; }
+    @media (prefers-color-scheme: dark) { :root { --text: #e8e9f1; --muted: #a3a6bb; --bg: #12131a; --card: #1b1d27; --primary: #4d9bff; --border: #2e3142; } }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.65 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    main { max-width: 760px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+    article { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 1.5rem 1.75rem; }
+    h1 { font-size: 1.7rem; margin: 0 0 .25rem; }
+    h2 { font-size: 1.15rem; margin: 1.75rem 0 .5rem; }
+    .muted { color: var(--muted); font-size: .92rem; }
+    a { color: var(--primary); }
+    table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+    th, td { text-align: left; padding: .45rem .5rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+    .brand { font-weight: 800; font-size: 1.3rem; margin-bottom: 1rem; display: block; text-decoration: none; color: var(--text); }
+    .brand b { color: var(--primary); }
+  </style>
+</head>
+<body>
+<main>
+  <a class="brand" href="./">Student<b>HUB</b></a>
+  <article>
+    <h1>Zásady ochrany súkromia</h1>
+    <p class="muted">Platné od 24. 10. 2026 · webový portál StudentHUB a Android aplikácia StudentHUB (io.github.jzac369.studenthub)</p>
+
+    <h2>1. Kto spracúva údaje</h2>
+    <p>Prevádzkovateľom portálu StudentHUB je <strong>DigiStart ADV</strong>. Kontakt pre otázky k ochrane údajov: <a href="mailto:info@digistart.sk">info@digistart.sk</a>.
+    StudentHUB je uzavretý študentský portál. Prístup majú iba študenti a administrátori, ktorých účet schválil administrátor.</p>
+
+    <h2>2. Aké údaje spracúvame</h2>
+    <table>
+      <tr><th>Údaj</th><th>Účel</th></tr>
+      <tr><td>Meno, e-mail, telefón, mesto</td><td>Prihlásenie, register študentov, kontakt medzi študentmi</td></tr>
+      <tr><td>Profilová fotka (nepovinná)</td><td>Zobrazenie v registri a v správach</td></tr>
+      <tr><td>Odovzdané práce a študijné materiály</td><td>Odovzdávanie prác, preposlanie lektorom, zdieľanie materiálov</td></tr>
+      <tr><td>Správy medzi používateľmi</td><td>Komunikácia v portáli; obsah súkromných správ vidia iba ich účastníci</td></tr>
+      <tr><td>Inzeráty v Burze kníh a skrípt</td><td>Predaj, darovanie a hľadanie študijnej literatúry</td></tr>
+      <tr><td>Záznamy o aktivite (log)</td><td>Bezpečnosť a správa portálu: prihlásenia, zobrazené časti portálu a vykonané akcie. Obsah správ ani heslá sa nezaznamenávajú.</td></tr>
+    </table>
+    <p>Heslá spracúva výhradne služba Google Firebase Authentication; prevádzkovateľ ich nevidí. Portál nepoužíva reklamu ani reklamné či analytické sledovanie.</p>
+
+    <h2>3. Kto má k údajom prístup</h2>
+    <p>Schválení študenti vidia register (meno, e-mail, telefón, mesto, fotka), nástenku, rozvrh, schválené materiály a inzeráty. Odovzdané práce vidí iba ich autor a administrátori.
+    Administrátori vidia aj log aktivity. Údaje nepredávame ani neposkytujeme tretím stranám na marketing.</p>
+
+    <h2>4. Kde sú údaje uložené</h2>
+    <p>Údaje sú uložené v službe Google Firebase (Google Ireland Ltd.). Databáza je umiestnená v Európskej únii (región eur3), súbory (práce, materiály) v dátovom centre Google v USA
+    na základe štandardných zmluvných doložiek. Prenos je šifrovaný (HTTPS) a údaje sú šifrované aj v úložisku.</p>
+
+    <h2>5. Ako dlho údaje uchovávame</h2>
+    <p>Údaje uchovávame počas trvania štúdia a používania portálu. Záznamy o aktivite pravidelne mažeme, spravidla po 90 dňoch. Po skončení štúdia alebo na žiadosť účet a súvisiace údaje vymažeme.</p>
+
+    <h2>6. Vaše práva</h2>
+    <p>Máte právo na prístup k údajom, ich opravu, vymazanie, obmedzenie spracúvania, prenosnosť a právo namietať. Žiadosť pošlite na <a href="mailto:info@digistart.sk">info@digistart.sk</a>.
+    Meno, telefón, mesto a fotku si môžete kedykoľvek upraviť v časti Môj profil. Máte tiež právo podať sťažnosť na Úrad na ochranu osobných údajov SR (<a href="https://dataprotection.gov.sk">dataprotection.gov.sk</a>).</p>
+
+    <h2>7. Android aplikácia</h2>
+    <p>Android aplikácia StudentHUB zobrazuje ten istý webový portál. Nezískava žiadne ďalšie údaje zo zariadenia (polohu, kontakty, fotografie mimo tých, ktoré sami vyberiete na nahratie) a nevyžaduje žiadne špeciálne oprávnenia.</p>
+
+    <h2>8. Zmeny</h2>
+    <p>O zmenách týchto zásad budeme informovať na nástenke portálu.</p>
+  </article>
+</main>
+</body>
+</html>

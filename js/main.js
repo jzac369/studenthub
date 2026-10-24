@@ -94,7 +94,7 @@ function renderShell() {
           <div class="min0"><div class="strong ellipsis">${esc(p.full_name)}</div><div class="muted small">${isAdmin() ? 'Administrátor' : 'Študent'}</div></div></div>
         <div class="row"><button class="btn ghost sm" id="theme" title="Prepnúť tmavý režim">${icon('moon', 15)} Režim</button>
           <button class="btn ghost sm" id="logout">${icon('logout', 15)} Odhlásiť</button></div>
-        <p class="powered left">Powered by <b>DigiStart ADV</b></p>
+        <p class="powered left">Powered by <b>DigiStart ADV</b><br><a href="privacy.html">Ochrana súkromia</a></p>
       </div>
     </aside>
     <div class="min0">

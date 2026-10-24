@@ -28,7 +28,7 @@ export function renderAuth(root) {
       <p class="muted small">Po registrácii musí tvoj účet schváliť administrátor.</p>
       <button class="btn">${icon('userPlus', 16)} Zaregistrovať sa</button>
     </form>
-  </div><p class="powered">Powered by <b>DigiStart ADV</b></p></div>`;
+  </div><p class="powered">Powered by <b>DigiStart ADV</b> · <a href="privacy.html">Ochrana súkromia</a></p></div>`;
 
   root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     root.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x === b));
@@ -77,7 +77,7 @@ export function renderPending(root, profile) {
     <p class="muted">Ahoj ${esc(profile?.full_name || '')}, tvoju registráciu ešte musí potvrdiť administrátor. Skús to neskôr.</p>
     <div class="row" style="justify-content:center"><button class="btn ghost" id="reload">${icon('refresh', 16)} Skúsiť znova</button>
       <button class="btn ghost" id="out">${icon('logout', 16)} Odhlásiť sa</button></div>
-  </div><p class="powered">Powered by <b>DigiStart ADV</b></p></div>`;
+  </div><p class="powered">Powered by <b>DigiStart ADV</b> · <a href="privacy.html">Ochrana súkromia</a></p></div>`;
   $('#reload', root).onclick = () => location.reload();
   $('#out', root).onclick = () => logout();
 }
