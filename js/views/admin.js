@@ -117,7 +117,7 @@ async function renderStats(el) {
 
   el.innerHTML = `<div class="stat-grid">
       ${tile('Študenti', students.length, `${students.length - withSub.size} bez jedinej práce`)}
-      ${tile('Odovzdané práce', subs.length, `${subs.filter(r => r.status === 'forwarded').length} odoslaných lektorovi`)}
+      ${tile('Odovzdané práce', subs.length, `odoslané lektorovi: ${subs.filter(r => r.status === 'forwarded').length}`)}
       ${tile('Po termíne', late.length, subs.length ? `${Math.round(late.length / subs.length * 100)} % prác` : '')}
       ${tile('Materiály na schválenie', pendingMat.length, '<a href="#/materialy/schvalovanie">schváliť</a>')}
       ${tile('Inzeráty v burze', market.length, 'aktívne')}

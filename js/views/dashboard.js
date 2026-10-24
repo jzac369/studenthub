@@ -24,7 +24,7 @@ export default async function (root) {
     <aside class="home-side">
       <h1>Ahoj, ${esc(firstName)}</h1>
       ${feature('messaging_enabled') ? tile('#/spravy', 'message', 'Neprečítané správy', unreadN, unreadN ? 'otvoriť správy' : 'všetko prečítané') : ''}
-      ${feature('uploads_enabled') ? tile('#/prace', 'file', 'Moje odovzdané práce', subs.length, `${subs.filter(s => s.status === 'forwarded').length} odoslaných lektorovi`) : ''}
+      ${feature('uploads_enabled') ? tile('#/prace', 'file', 'Moje odovzdané práce', subs.length, `odoslané lektorovi: ${subs.filter(s => s.status === 'forwarded').length}`) : ''}
       <div class="card"><h2>${icon('calendar')} Dnes</h2>
         ${todays.length ? todays.map(l => lessonCard(l)).join('') : '<p class="muted">Dnes nemáš žiadne hodiny.</p>'}
         <a href="#/rozvrh" class="small">Celý rozvrh</a>

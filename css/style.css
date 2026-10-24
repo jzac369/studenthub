@@ -322,3 +322,4 @@ img.avatar.photo { object-fit: cover; border-radius: 50%; display: block; flex-s
 details.assign { border-top: 1px solid var(--border); padding: .7rem 0; }
 details.assign summary { cursor: pointer; display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; list-style: none; }
 details.assign summary::-webkit-details-marker { display: none; }
+.check.remember { margin-top: .75rem; font-weight: 500; }

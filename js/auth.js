@@ -1,5 +1,5 @@
 import {
-  auth, db, doc, setDoc, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword,
+  auth, db, doc, setDoc, serverTimestamp, setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword,
   sendPasswordResetEmail, signOut, logout, esc, toast, guard, icon, $,
 } from './lib.js';
 import { logo } from './icons.js';
@@ -14,6 +14,7 @@ export function renderAuth(root) {
     <form id="login">
       <label>E-mail</label><input name="email" type="email" required autocomplete="username">
       <label>Heslo</label><input name="password" type="password" required autocomplete="current-password">
+      <label class="check remember"><input type="checkbox" name="remember" checked> Zostať prihlásený</label>
       <div class="row" style="margin-top:1rem"><button class="btn">${icon('lock', 16)} Prihlásiť sa</button><span class="spacer"></span>
         <a href="#" id="forgot" class="small">Zabudnuté heslo?</a></div>
     </form>
@@ -40,6 +41,8 @@ export function renderAuth(root) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     try { sessionStorage.setItem('sh-login', 'login'); } catch {}
+    // Bez „Zostať prihlásený“ sa prihlásenie zabudne po zatvorení prehliadača (zdieľané počítače)
+    await setPersistence(auth, f.remember ? browserLocalPersistence : browserSessionPersistence);
     await signInWithEmailAndPassword(auth, f.email.trim(), f.password);
   });
 
