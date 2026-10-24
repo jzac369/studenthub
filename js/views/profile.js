@@ -1,5 +1,5 @@
 import {
-  auth, db, state, doc, updateDoc, deleteField, bump, startPresence, goOffline, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
+  auth, db, state, doc, updateDoc, deleteField, bump, startPresence, goOffline, soundEnabled, setSoundEnabled, playChime, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
   avatar, resizePhoto, esc, guard, toast, icon,
 } from '../lib.js';
 
@@ -19,6 +19,7 @@ export default async function (root) {
       <label>Telefón</label><input name="phone" type="tel" value="${esc(p.phone)}">
       <label>Mesto</label><input name="city" value="${esc(p.city)}">
       <label class="check" style="margin-top:.9rem"><input type="checkbox" name="show_online" ${p.hide_online ? '' : 'checked'}> Zobrazovať ostatným, keď som online</label>
+      <label class="check"><input type="checkbox" id="sound" ${soundEnabled() ? 'checked' : ''}> Zvuk pri novej správe (na tomto zariadení)</label>
       <button class="btn" style="margin-top:1rem">${icon('check', 16)} Uložiť</button>
     </form>
     <form class="card" id="pw"><h2>${icon('lock')} Zmena hesla</h2>
@@ -49,6 +50,11 @@ export default async function (root) {
   root.querySelector('#nophoto')?.addEventListener('click', () => guard(async () => {
     if (confirm('Odstrániť profilovú fotku?')) await savePhoto(null);
   }));
+
+  root.querySelector('#sound').onchange = e => {
+    setSoundEnabled(e.target.checked);
+    if (e.target.checked) playChime();
+  };
 
   root.querySelector('#info').onsubmit = e => guard(async () => {
     e.preventDefault();

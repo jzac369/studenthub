@@ -353,6 +353,32 @@ export function loadScript(src) {
   });
 }
 
+// ---------- Zvuk pri novej správe ----------
+// Krátky príjemný dvojtón generovaný prehliadačom (bez zvukového súboru). Nastavenie platí pre toto zariadenie.
+export const soundEnabled = () => { try { return localStorage.getItem('sh-sound') !== 'off'; } catch { return true; } };
+export const setSoundEnabled = on => { try { localStorage.setItem('sh-sound', on ? 'on' : 'off'); } catch {} };
+let audioCtx = null;
+export function playChime() {
+  if (!soundEnabled()) return;
+  try {
+    audioCtx ??= new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const t = audioCtx.currentTime;
+    [[880, 0], [1318.5, 0.13]].forEach(([freq, delay]) => {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.0001, t + delay);
+      gain.gain.exponentialRampToValueAtTime(0.18, t + delay + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + delay + 0.45);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(t + delay);
+      osc.stop(t + delay + 0.5);
+    });
+  } catch {}
+}
+
 export function toggleTheme() {
   const dark = matchMedia('(prefers-color-scheme: dark)').matches;
   const cur = document.documentElement.dataset.theme || (dark ? 'dark' : 'light');

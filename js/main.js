@@ -1,6 +1,6 @@
 import {
   auth, db, state, configured, $, $$, esc, icon, isAdmin, feature, initials, toggleTheme, loadPeople, loadSettings,
-  watchVersions, clearCache, startPresence, stopPresence, avatar, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
+  watchVersions, clearCache, playChime, toDate, startPresence, stopPresence, avatar, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
 } from './lib.js';
 import { logo } from './icons.js';
 import { renderAuth, renderPending, signupDone } from './auth.js';
@@ -113,8 +113,12 @@ function renderShell() {
 
   // Jeden živý odber konverzácií – odznak neprečítaných aj zoznam v Správach
   if (feature('messaging_enabled')) {
+    let seen = null; // čas poslednej správy v každej konverzácii – na rozpoznanie nových správ
     unsubConvs = onSnapshot(query(col('conversations'), where('members', 'array-contains', state.user.uid)), snap => {
       state.convs = rows(snap);
+      const times = new Map(state.convs.map(c => [c.id, toDate(c.last_message_at)?.getTime() || 0]));
+      if (seen && state.convs.some(c => c.last_sender && c.last_sender !== state.user.uid && times.get(c.id) > (seen.get(c.id) ?? 0))) playChime();
+      seen = times;
       const n = state.convs.reduce((sum, c) => sum + unreadCount(c), 0);
       const el = $('#unread');
       if (el) {
