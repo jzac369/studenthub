@@ -1,5 +1,5 @@
 import {
-  db, state, col, doc, query, where, list, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, toDate, byNewest,
+  db, state, col, doc, query, where, list, cached, bump, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, toDate, byNewest,
   createUserWithEmailAndPassword, signOut, getHelperAuth, downloadFile, loadSettings, DEFAULT_SETTINGS,
   esc, guard, toast, modal, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon,
 } from '../lib.js';
@@ -43,11 +43,13 @@ async function renderUsers(el) {
   };
   el.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => guard(async () => {
     await updateDoc(doc(db, 'users', b.dataset.approve), { approved: b.dataset.v === 'true' });
+    await bump('users');
     renderUsers(el);
   }));
   el.querySelectorAll('[data-role]').forEach(b => b.onclick = () => guard(async () => {
     if (b.dataset.v === 'admin' && !confirm('Tento používateľ získa plný prístup k administrácii. Pokračovať?')) return;
     await updateDoc(doc(db, 'users', b.dataset.role), { role: b.dataset.v });
+    await bump('users');
     renderUsers(el);
   }));
   el.querySelector('#add').onclick = () => addStudent(() => renderUsers(el));
@@ -76,6 +78,7 @@ function addStudent(done) {
       full_name: f.full_name.trim(), email: cred.user.email, phone: f.phone.trim(), city: f.city.trim(),
       role: 'student', approved: true, created_at: serverTimestamp(),
     });
+    await bump('users');
     m.el.innerHTML = `<p>Účet pre <strong>${esc(f.full_name)}</strong> je vytvorený a schválený.</p>
       <p>E-mail: <strong>${esc(cred.user.email)}</strong><br>Dočasné heslo: <code class="pw">${password}</code></p>
       <p class="muted small">Heslo si teraz skopíruj – neskôr ho už neuvidíš.</p>
@@ -89,9 +92,12 @@ function addStudent(done) {
 
 // ---------------------------------------------------------------- Práce a preposielanie
 async function renderForward(el) {
-  const [subjects, assignments, all] = await Promise.all([list(col('subjects')), list(col('assignments')), list(col('submissions'))]);
+  const [subjects, assignments] = await Promise.all([cached('subjects'), cached('assignments')]);
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
-  all.sort(byNewest);
+  // Práce sa načítavajú podľa stavu – bežne len tie, ktoré ešte neboli odoslané
+  const byStatus = {};
+  const load = async status => (byStatus[status] ??= (await list(status ? query(col('submissions'), where('status', '==', status)) : col('submissions'))).sort(byNewest));
+  let all = await load('submitted');
 
   el.innerHTML = `<div class="card">
     <div class="row">
@@ -118,7 +124,11 @@ async function renderForward(el) {
     fa.innerHTML = '<option value="">Všetky zadania</option>' + assignments.filter(a => a.subject_id === fs.value).map(a => `<option value="${a.id}">${esc(a.title)}</option>`).join('');
     draw();
   };
-  fa.onchange = fst.onchange = draw;
+  fa.onchange = draw;
+  fst.onchange = () => guard(async () => {
+    all = await load(fst.value);
+    draw();
+  });
 
   function draw() {
     shown = all.filter(r => (!fs.value || r.subject_id === fs.value) && (!fa.value || r.assignment_id === fa.value) && (!fst.value || r.status === fst.value));
@@ -188,6 +198,8 @@ async function renderForward(el) {
     }
     const now = new Date();
     s.forEach(r => Object.assign(r, { status: 'forwarded', forwarded_at: now }));
+    delete byStatus.forwarded;
+    delete byStatus[''];
     toast('Označené ako odoslané');
     draw();
   });
@@ -197,7 +209,7 @@ async function renderForward(el) {
 
 // ---------------------------------------------------------------- Predmety a termíny
 async function renderSubjects(el) {
-  const [subjects, assignments] = await Promise.all([list(col('subjects')), list(col('assignments'))]);
+  const [subjects, assignments] = await Promise.all([cached('subjects'), cached('assignments')]);
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   assignments.sort((a, b) => (a.due_date || '9').localeCompare(b.due_date || '9'));
 
@@ -222,6 +234,7 @@ async function renderSubjects(el) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     await addDoc(col('subjects'), { name: f.name.trim(), lecturer_name: f.lecturer_name.trim(), lecturer_email: f.lecturer_email.trim() });
+    await bump('subjects');
     renderSubjects(el);
   });
   el.querySelector('#fas').onsubmit = e => guard(async () => {
@@ -229,19 +242,22 @@ async function renderSubjects(el) {
     const f = Object.fromEntries(new FormData(e.target));
     const subject = subjects.find(s => s.id === f.subject_id);
     await addDoc(col('assignments'), { subject_id: subject.id, subject_name: subject.name, title: f.title.trim(), due_date: f.due_date || '' });
+    await bump('assignments');
     renderSubjects(el);
   });
   el.querySelectorAll('[data-dsub]').forEach(b => b.onclick = () => guard(async () => {
     if (!confirm('Zmazať predmet aj všetky jeho zadania? Odovzdané práce zostanú.')) return;
     const batch = writeBatch(db);
-    (await list(query(col('assignments'), where('subject_id', '==', b.dataset.dsub)))).forEach(a => batch.delete(doc(db, 'assignments', a.id)));
+    assignments.filter(a => a.subject_id === b.dataset.dsub).forEach(a => batch.delete(doc(db, 'assignments', a.id)));
     batch.delete(doc(db, 'subjects', b.dataset.dsub));
     await batch.commit();
+    await Promise.all([bump('subjects'), bump('assignments')]);
     renderSubjects(el);
   }));
   el.querySelectorAll('[data-das]').forEach(b => b.onclick = () => guard(async () => {
     if (!confirm('Zmazať zadanie?')) return;
     await deleteDoc(doc(db, 'assignments', b.dataset.das));
+    await bump('assignments');
     renderSubjects(el);
   }));
 }
@@ -267,6 +283,7 @@ async function renderSettings(el) {
       register_enabled: f.has('register_enabled'),
       max_file_mb: Math.min(50, Math.max(1, Number(f.get('max_file_mb')) || DEFAULT_SETTINGS.max_file_mb)),
     });
+    await bump('settings');
     toast('Nastavenia uložené – menu sa obnoví');
     setTimeout(() => location.reload(), 800);
   });

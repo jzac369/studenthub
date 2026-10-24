@@ -1,5 +1,5 @@
 import {
-  db, state, col, doc, query, where, list, addDoc, deleteDoc, serverTimestamp, toDate, byNewest,
+  db, state, col, doc, query, where, list, cached, addDoc, deleteDoc, serverTimestamp, toDate, byNewest,
   uploadFile, downloadFile, removeFile, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon,
 } from '../lib.js';
 
@@ -8,7 +8,7 @@ export const ALLOWED = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'ppt', 'pptx'
 export default async function (root) {
   const uid = state.user.uid;
   const maxMb = Number(state.settings.max_file_mb) || 30;
-  const [subjects, assignments] = await Promise.all([list(col('subjects')), list(col('assignments'))]);
+  const [subjects, assignments] = await Promise.all([cached('subjects'), cached('assignments')]);
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   assignments.sort((a, b) => (a.due_date || '9').localeCompare(b.due_date || '9'));
 

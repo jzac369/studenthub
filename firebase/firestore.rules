@@ -30,6 +30,15 @@ service cloud.firestore {
       allow delete: if admin();
     }
 
+    // Časy poslednej zmeny zbierok – podľa nich si prehliadač obnovuje svoju cache.
+    // Študent smie označiť iba zmenu registra (keď si upraví profil).
+    match /meta/{id} {
+      allow read: if approved();
+      allow create: if admin();
+      allow update: if admin() || (approved()
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['users']));
+    }
+
     match /settings/{id} {
       allow read: if approved();
       allow write: if admin();

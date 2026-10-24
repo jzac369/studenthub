@@ -5,7 +5,7 @@ import {
   reauthenticateWithCredential, EmailAuthProvider,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 import {
-  getFirestore, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where,
+  initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where,
   orderBy, limit, onSnapshot, serverTimestamp, writeBatch,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js';
@@ -22,7 +22,8 @@ export { icon } from './icons.js';
 export const configured = !firebaseConfig.apiKey.startsWith('YOUR');
 export const app = initializeApp(firebaseConfig);
 export const auth = getAuth(app);
-export const db = getFirestore(app);
+// Lokálna cache Firestore – opätovné odbery do 30 minút účtujú len zmenené dokumenty
+export const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) });
 export const storage = getStorage(app);
 
 export const state = { user: null, profile: null, settings: {}, people: new Map(), convs: [] };
@@ -43,7 +44,7 @@ export function getHelperAuth() {
 export const col = name => collection(db, name);
 export const rows = snap => snap.docs.map(d => ({ id: d.id, ...d.data({ serverTimestamps: 'estimate' }) }));
 export const list = async q => rows(await getDocs(q));
-export const toDate = v => (v?.toDate ? v.toDate() : v ? new Date(v) : null);
+export const toDate = v => (v?.toDate ? v.toDate() : v?.seconds !== undefined ? new Date(v.seconds * 1000) : v ? new Date(v) : null);
 export const byNewest = (a, b) => (toDate(b.created_at) || 0) - (toDate(a.created_at) || 0);
 
 // ---------- Súbory ----------
@@ -127,17 +128,71 @@ export const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD
 export const safeName = s => String(s || 'subor').normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/[^\w.\-]+/g, '_').replace(/_+/g, '_').slice(0, 120);
 
+// ---------- Šetrenie čítaní ----------
+// Málo meniace sa zbierky si pamätáme v prehliadači. Dokument meta/versions drží čas poslednej
+// zmeny každej zbierky; ak sa nezmenil, údaje sa berú z cache a databáza sa vôbec nečíta.
+const CACHE_PREFIX = 'sh-cache:';
+const LOADERS = {
+  users: () => list(isAdmin() ? col('users') : query(col('users'), where('approved', '==', true))),
+  announcements: () => list(col('announcements')),
+  schedule: () => list(col('schedule')),
+  subjects: () => list(col('subjects')),
+  assignments: () => list(col('assignments')),
+  settings: async () => (await getDoc(doc(db, 'settings', 'app'))).data() || {},
+};
+let versions = {};
+const versionOf = name => toDate(versions[name])?.getTime() || 0;
+const cacheKey = name => `${CACHE_PREFIX}${state.user.uid}:${name}`;
+
+// Živý odber verzií – 1 čítanie pri štarte a 1 pri každej zmene. `ready` počká na prvé údaje.
+export function watchVersions(onChange) {
+  let resolveReady;
+  const ready = new Promise(r => (resolveReady = r));
+  const unsub = onSnapshot(doc(db, 'meta', 'versions'), snap => {
+    if (!snap.exists() && !snap.metadata.fromCache && isAdmin()) {
+      setDoc(doc(db, 'meta', 'versions'), Object.fromEntries(Object.keys(LOADERS).map(k => [k, serverTimestamp()])));
+    }
+    const before = JSON.stringify(Object.keys(LOADERS).map(versionOf));
+    versions = snap.data({ serverTimestamps: 'estimate' }) || {};
+    const changed = before !== JSON.stringify(Object.keys(LOADERS).map(versionOf));
+    resolveReady();
+    if (changed) onChange?.();
+  }, e => { console.error(e); resolveReady(); });
+  return { unsub, ready };
+}
+
+export async function cached(name) {
+  const v = versionOf(name);
+  try {
+    const c = JSON.parse(localStorage.getItem(cacheKey(name)));
+    if (c && c.v === v) return structuredClone(c.data);
+  } catch {}
+  const data = await LOADERS[name]();
+  try { localStorage.setItem(cacheKey(name), JSON.stringify({ v, data })); } catch {}
+  return data;
+}
+
+// Po zápise: označ zbierku ako zmenenú pre všetkých a zahoď vlastnú cache
+export async function bump(name) {
+  try { localStorage.removeItem(cacheKey(name)); } catch {}
+  await setDoc(doc(db, 'meta', 'versions'), { [name]: serverTimestamp() }, { merge: true });
+}
+
+export function clearCache() {
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => localStorage.removeItem(k));
+  } catch {}
+}
+
 export async function loadPeople() {
-  const people = await list(query(col('users'), where('approved', '==', true)));
+  const people = (await cached('users')).filter(p => p.approved);
   state.people = new Map(people.map(p => [p.id, p]));
   return people;
 }
 
 export const DEFAULT_SETTINGS = { uploads_enabled: true, messaging_enabled: true, register_enabled: true, max_file_mb: 30 };
 export async function loadSettings() {
-  const snap = await getDoc(doc(db, 'settings', 'app'));
-  if (!snap.exists() && isAdmin()) await setDoc(doc(db, 'settings', 'app'), DEFAULT_SETTINGS);
-  state.settings = { ...DEFAULT_SETTINGS, ...(snap.data() || {}) };
+  state.settings = { ...DEFAULT_SETTINGS, ...(await cached('settings')) };
 }
 
 export function isUnread(c) {

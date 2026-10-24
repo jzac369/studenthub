@@ -1,15 +1,17 @@
-import { state, col, query, where, list, esc, fmtDate, feature, icon, today, isUnread, toDate } from '../lib.js';
+import { state, col, query, where, list, cached, esc, fmtDate, feature, icon, today, isUnread, toDate } from '../lib.js';
 import { lessonCard, runsThisWeek, sortLessons } from './schedule.js';
 
 export default async function (root) {
   const uid = state.user.uid;
   const day = today();
-  const [ann, due, subs, lessons] = await Promise.all([
-    list(col('announcements')),
-    list(query(col('assignments'), where('due_date', '>=', day))),
+  const [ann, assignments, subs, schedule] = await Promise.all([
+    cached('announcements'),
+    cached('assignments'),
     feature('uploads_enabled') ? list(query(col('submissions'), where('student_id', '==', uid))) : [],
-    list(query(col('schedule'), where('day', '==', new Date().getDay()))),
+    cached('schedule'),
   ]);
+  const due = assignments.filter(a => a.due_date && a.due_date >= day);
+  const lessons = schedule.filter(l => l.day === new Date().getDay());
 
   const latest = ann.sort((a, b) => (!!b.pinned - !!a.pinned) || (toDate(b.created_at) - toDate(a.created_at))).slice(0, 3);
   const upcoming = due.sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 6);

@@ -1,4 +1,4 @@
-import { db, state, col, doc, addDoc, updateDoc, deleteDoc, list, serverTimestamp, toDate, esc, guard, toast, modal, fmtDate, icon, isAdmin } from '../lib.js';
+import { db, state, col, doc, addDoc, updateDoc, deleteDoc, cached, bump, serverTimestamp, toDate, esc, guard, toast, modal, fmtDate, icon, isAdmin } from '../lib.js';
 
 const COLORS = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple'];
 // Stabilné mierne natočenie lístka podľa jeho id
@@ -8,7 +8,7 @@ const PIN = `<svg class="pin" width="26" height="30" viewBox="0 0 26 30" aria-la
 
 export default async function (root) {
   async function render() {
-    const notes = (await list(col('announcements')))
+    const notes = (await cached('announcements'))
       .sort((a, b) => (!!b.pinned - !!a.pinned) || (toDate(b.created_at) - toDate(a.created_at)));
     root.innerHTML = `<div class="title-row"><h1>${icon('pin', 24)} Nástenka</h1><span class="spacer"></span>
       ${isAdmin() ? `<button class="btn" id="add">${icon('plus', 16)} Nový oznam</button>` : ''}</div>
@@ -26,6 +26,7 @@ export default async function (root) {
     root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
       if (!confirm('Naozaj zmazať tento oznam?')) return;
       await deleteDoc(doc(db, 'announcements', b.dataset.del));
+      await bump('announcements');
       render();
     }));
   }
@@ -43,6 +44,7 @@ export default async function (root) {
       const row = { title: f.get('title'), body: f.get('body'), color: f.get('color') || 'yellow', pinned: f.has('pinned') };
       if (note.id) await updateDoc(doc(db, 'announcements', note.id), row);
       else await addDoc(col('announcements'), { ...row, author_id: state.user.uid, created_at: serverTimestamp() });
+      await bump('announcements');
       m.close();
       toast('Uložené');
       render();

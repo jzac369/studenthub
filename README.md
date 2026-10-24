@@ -105,7 +105,20 @@ Každý má vlastné heslo. Zabudnuté heslo sa obnovuje odkazom z e-mailu, ktor
 - **Kapacita:** do 5 GB zadarmo, čo je napríklad 200 študentov × 5 prác × 5 MB. Pri raste nad limit Google účtuje zhruba 0,02 € za GB mesačne.
 - **Zálohy:** na konci semestra si admin stiahne všetky práce cez *Administrácia → Práce → Stiahnuť ZIP* a staré môže zmazať.
 
-## 7. Poznámky
+## 7. Ako portál šetrí bezplatný limit databázy
+
+Bezplatný Firestore dovoľuje 50 000 čítaní denne. Portál je navrhnutý tak, aby sa doň s rezervou zmestil aj pri 200 aktívnych študentoch:
+
+- **Cache v prehliadači.** Register, nástenka, rozvrh, predmety, zadania a nastavenia sa ukladajú v prehliadači. Malý dokument `meta/versions` obsahuje čas poslednej zmeny každej z týchto častí. Pri prihlásení sa prečíta iba tento jeden dokument a celá zbierka sa stiahne znova, len ak ju admin medzičasom zmenil.
+- **Živé aktualizácie.** Keď admin pridá oznam alebo zmení rozvrh, študentom s otvoreným portálom sa nástenka aj rozvrh obnovia samy.
+- **Správy po častiach.** Otvorenie konverzácie načíta posledných 40 správ, staršie až po kliknutí na *Načítať staršie správy*.
+- **Lokálna cache Firestore.** Ak sa študent vráti do 30 minút, odbery správ účtujú iba zmenené dokumenty.
+- **Admin a práce.** V preposielaní sa predvolene načítajú iba práce, ktoré ešte neboli odoslané lektorovi.
+- **Súkromie.** Po odhlásení sa cache v prehliadači zmaže, takže na zdieľanom počítači nezostanú kontakty študentov.
+
+Orientačne: bežné prihlásenie a prezretie portálu stojí 5 až 15 čítaní (namiesto 200 a viac). Pri 200 študentoch a niekoľkých návštevách denne to vychádza na niekoľko tisíc čítaní z 50 000. Aktuálnu spotrebu vidíš vo Firebase → **Firestore Database → Usage**.
+
+## 8. Poznámky
 
 - Firebase projekty sa neuspávajú pri nečinnosti.
 - **GDPR:** register obsahuje osobné údaje. Študentom daj vedieť, kto ich vidí. Pri odchode zo školy ich deaktivuj alebo zmaž (*Authentication → Users* a dokument v `users`).

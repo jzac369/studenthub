@@ -8,6 +8,7 @@ export default async function (root) {
   await loadPeople();
   let active = null;
   let unsubMsgs = null;
+  const PAGE = 40; // správ na jedno načítanie – staršie len na požiadanie
 
   root.innerHTML = `<div class="chat" id="chat">
     <aside class="chat-list">
@@ -57,13 +58,22 @@ export default async function (root) {
     pane.querySelector('#back').onclick = () => chat.classList.remove('open');
 
     const box = pane.querySelector('#msgs');
-    unsubMsgs = onSnapshot(query(collection(db, 'conversations', id, 'messages'), orderBy('created_at', 'desc'), limit(200)), snap => {
-      box.innerHTML = rows(snap).reverse().map(m => {
-        const mine = m.sender_id === uid;
-        return `<div class="msg ${mine ? 'me' : ''}">${!mine && c.is_group ? `<div class="who">${esc(name(m.sender_id))}</div>` : ''}${esc(m.body)}<div class="time">${fmtDateTime(m.created_at)}</div></div>`;
-      }).join('');
-      box.scrollTop = box.scrollHeight;
-    }, err => guard(() => { throw err; }));
+    let shown = PAGE;
+    const listen = keepScroll => {
+      unsubMsgs?.();
+      unsubMsgs = onSnapshot(query(collection(db, 'conversations', id, 'messages'), orderBy('created_at', 'desc'), limit(shown)), snap => {
+        const fromBottom = box.scrollHeight - box.scrollTop;
+        box.innerHTML = (snap.size >= shown ? '<button class="btn ghost sm older" id="older">Načítať staršie správy</button>' : '') +
+          rows(snap).reverse().map(m => {
+            const mine = m.sender_id === uid;
+            return `<div class="msg ${mine ? 'me' : ''}">${!mine && c.is_group ? `<div class="who">${esc(name(m.sender_id))}</div>` : ''}${esc(m.body)}<div class="time">${fmtDateTime(m.created_at)}</div></div>`;
+          }).join('');
+        box.scrollTop = keepScroll ? box.scrollHeight - fromBottom : box.scrollHeight;
+        keepScroll = false;
+        box.querySelector('#older')?.addEventListener('click', () => { shown += PAGE; listen(true); });
+      }, err => guard(() => { throw err; }));
+    };
+    listen(false);
 
     const form = pane.querySelector('#send');
     const body = form.elements.body;

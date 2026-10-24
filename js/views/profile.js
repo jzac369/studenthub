@@ -1,5 +1,5 @@
 import {
-  auth, db, state, doc, updateDoc, updatePassword, reauthenticateWithCredential, EmailAuthProvider, esc, guard, toast, icon,
+  auth, db, state, doc, updateDoc, bump, updatePassword, reauthenticateWithCredential, EmailAuthProvider, esc, guard, toast, icon,
 } from '../lib.js';
 
 export default async function (root) {
@@ -26,7 +26,9 @@ export default async function (root) {
     const f = Object.fromEntries(new FormData(e.target));
     const row = { full_name: f.full_name.trim(), phone: f.phone.trim(), city: f.city.trim() };
     await updateDoc(doc(db, 'users', p.id), row);
+    await bump('users');
     Object.assign(p, row);
+    Object.assign(state.people.get(p.id) || {}, row);
     toast('Profil uložený');
   });
 

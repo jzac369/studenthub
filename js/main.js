@@ -1,6 +1,6 @@
 import {
   auth, db, state, configured, $, $$, esc, icon, isAdmin, feature, initials, toggleTheme, loadPeople, loadSettings,
-  onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, errMsg,
+  watchVersions, clearCache, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, errMsg,
 } from './lib.js';
 import { logo } from './icons.js';
 import { renderAuth, renderPending, signupDone } from './auth.js';
@@ -19,6 +19,9 @@ const NAV = [
 const app = $('#app');
 let cleanup = null;
 let unsubConvs = null;
+let unsubVersions = null;
+// Stránky, ktoré sa prekreslia, keď admin niečo zmení (nástenka, rozvrh…)
+const LIVE_VIEWS = ['', 'nastenka', 'rozvrh', 'register'];
 
 if (!configured) {
   app.innerHTML = `<div class="auth"><div class="card"><div class="logo big">${logo(40, true)}</div><h2>StudentHUB ešte nie je nastavený</h2>
@@ -31,6 +34,7 @@ async function handleSession(user) {
   teardown();
   if (!user) {
     state.user = state.profile = null;
+    clearCache(); // na zdieľanom počítači po odhlásení nezostanú osobné údaje
     return renderAuth(app);
   }
   state.user = user;
@@ -45,8 +49,18 @@ async function handleSession(user) {
     }
     state.profile = { id: user.uid, ...snap.data() };
     if (!state.profile.approved) return renderPending(app, state.profile);
+    let shellReady = false;
+    const versions = watchVersions(async () => {
+      if (!shellReady) return;
+      await Promise.all([loadSettings(), loadPeople()]);
+      const key = location.hash.replace(/^#\/?/, '').split('/')[0];
+      if (LIVE_VIEWS.includes(key) && !document.querySelector('.modal-back')) route();
+    });
+    unsubVersions = versions.unsub;
+    await versions.ready;
     await Promise.all([loadSettings(), loadPeople()]);
     renderShell();
+    shellReady = true;
   } catch (e) {
     console.error(e);
     app.innerHTML = `<div class="auth"><div class="card"><h2>Nepodarilo sa načítať portál</h2><p class="err-box">${esc(errMsg(e))}</p>
@@ -60,6 +74,8 @@ function teardown() {
   cleanup = null;
   unsubConvs?.();
   unsubConvs = null;
+  unsubVersions?.();
+  unsubVersions = null;
   window.onhashchange = null;
 }
 

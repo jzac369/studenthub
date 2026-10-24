@@ -1,4 +1,4 @@
-import { db, col, doc, addDoc, updateDoc, deleteDoc, list, esc, guard, toast, modal, icon, isAdmin } from '../lib.js';
+import { db, col, doc, addDoc, updateDoc, deleteDoc, cached, bump, esc, guard, toast, modal, icon, isAdmin } from '../lib.js';
 
 export const DAYS = ['Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok', 'Sobota'];
 export const TYPES = { lecture: 'Prednáška', seminar: 'Seminár', lab: 'Cvičenie', other: 'Iné' };
@@ -30,7 +30,7 @@ export default async function (root) {
   try { group = localStorage.getItem('sh-group') || ''; } catch {}
 
   async function render() {
-    const lessons = (await list(col('schedule'))).sort(sortLessons);
+    const lessons = (await cached('schedule')).sort(sortLessons);
     const groups = [...new Set(lessons.map(l => l.group).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'sk'));
     if (group && !groups.includes(group)) group = '';
     const shown = lessons.filter(l => !group || !l.group || l.group === group);
@@ -61,6 +61,7 @@ export default async function (root) {
     root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
       if (!confirm('Zmazať túto hodinu z rozvrhu?')) return;
       await deleteDoc(doc(db, 'schedule', b.dataset.del));
+      await bump('schedule');
       render();
     }));
   }
@@ -91,6 +92,7 @@ export default async function (root) {
       const row = { ...f, day: Number(f.day), subject: f.subject.trim(), room: f.room.trim(), teacher: f.teacher.trim(), group: f.group.trim() };
       if (l.id) await updateDoc(doc(db, 'schedule', l.id), row);
       else await addDoc(col('schedule'), row);
+      await bump('schedule');
       m.close();
       toast('Rozvrh uložený');
       render();
