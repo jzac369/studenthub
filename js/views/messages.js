@@ -22,6 +22,9 @@ export default async function (root) {
     <section class="chat-main" id="pane"><div class="empty">${icon('message', 40)}<p>Vyber konverzáciu alebo začni novú.</p></div></section>
   </div>`;
   const chat = root.querySelector('#chat');
+  const fit = () => { chat.style.height = `${Math.max(360, window.innerHeight - chat.getBoundingClientRect().top - 16)}px`; };
+  fit();
+  window.addEventListener('resize', fit);
   const name = id => state.people.get(id)?.full_name || 'Neznámy';
   const title = c => (c.is_group ? c.name : name(c.members.find(m => m !== uid)));
   const avatar = c => (c.is_group
@@ -188,6 +191,7 @@ export default async function (root) {
   try { openDm = sessionStorage.getItem('sh-open-dm'); sessionStorage.removeItem('sh-open-dm'); } catch {}
   if (openDm && state.people.has(openDm)) guard(() => startDm(openDm));
   return () => {
+    window.removeEventListener('resize', fit);
     window.removeEventListener('sh:convs', drawList);
     unsubMsgs?.();
   };
