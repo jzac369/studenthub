@@ -3,7 +3,7 @@
   "private": true,
   "description": "StudentHUB – zber spotreby Firebase pre administráciu",
   "main": "index.js",
-  "engines": { "node": "20" },
+  "engines": { "node": "22" },
   "dependencies": {
     "@google-cloud/monitoring": "^4.1.0",
     "firebase-admin": "^12.7.0",
