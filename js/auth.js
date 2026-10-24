@@ -1,6 +1,6 @@
 import {
   auth, db, doc, setDoc, serverTimestamp, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, signOut, esc, toast, guard, icon, $,
+  sendPasswordResetEmail, signOut, logout, esc, toast, guard, icon, $,
 } from './lib.js';
 import { logo } from './icons.js';
 
@@ -39,6 +39,7 @@ export function renderAuth(root) {
   $('#login', root).onsubmit = e => guard(async () => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
+    try { sessionStorage.setItem('sh-login', 'login'); } catch {}
     await signInWithEmailAndPassword(auth, f.email.trim(), f.password);
   });
 
@@ -47,6 +48,7 @@ export function renderAuth(root) {
     const f = Object.fromEntries(new FormData(e.target));
     let finish;
     signupDone = new Promise(r => (finish = r));
+    try { sessionStorage.setItem('sh-login', 'signup'); } catch {}
     try {
       const cred = await createUserWithEmailAndPassword(auth, f.email.trim(), f.password);
       await setDoc(doc(db, 'users', cred.user.uid), {
@@ -77,5 +79,5 @@ export function renderPending(root, profile) {
       <button class="btn ghost" id="out">${icon('logout', 16)} Odhlásiť sa</button></div>
   </div><p class="powered">Powered by <b>DigiStart ADV</b></p></div>`;
   $('#reload', root).onclick = () => location.reload();
-  $('#out', root).onclick = () => signOut(auth);
+  $('#out', root).onclick = () => logout();
 }

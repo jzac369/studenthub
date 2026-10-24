@@ -1,6 +1,6 @@
 import {
   db, state, collection, col, doc, getDoc, setDoc, addDoc, updateDoc, query, orderBy, limit, onSnapshot,
-  serverTimestamp, writeBatch, rows, toDate, isUnread, esc, guard, modal, fmtDateTime, initials, icon, isAdmin, loadPeople,
+  serverTimestamp, writeBatch, increment, rows, toDate, isUnread, unreadCount, logActivity, esc, guard, modal, fmtDateTime, initials, icon, isAdmin, loadPeople,
 } from '../lib.js';
 
 export default async function (root) {
@@ -8,14 +8,14 @@ export default async function (root) {
   await loadPeople();
   let active = null;
   let unsubMsgs = null;
-  const PAGE = 40; // správ na jedno načítanie – staršie len na požiadanie
+  const PAGE = 25; // správ na jedno načítanie – staršie len na požiadanie
 
   root.innerHTML = `<div class="chat" id="chat">
     <aside class="chat-list">
       <div class="chat-actions">
         <button class="btn sm" id="dm">${icon('mail', 15)} Nová správa</button>
-        <button class="btn ghost sm" id="grp">${icon('users', 15)} Skupina</button>
-        ${isAdmin() ? `<button class="btn ghost sm" id="all" title="Skupina so všetkými študentmi">${icon('megaphone', 15)} Všetkým</button>` : ''}
+        ${isAdmin() ? `<button class="btn ghost sm" id="grp">${icon('users', 15)} Skupina</button>
+        <button class="btn ghost sm" id="all" title="Skupina so všetkými študentmi">${icon('megaphone', 15)} Všetkým</button>` : ''}
       </div>
       <div id="convs"></div>
     </aside>
@@ -34,7 +34,7 @@ export default async function (root) {
         ${avatar(c)}
         <div class="min0"><div class="name">${esc(title(c))}</div>
           <div class="muted small ellipsis">${c.last_message ? esc(c.last_message) : c.is_group ? `${c.members.length} členov` : 'zatiaľ bez správ'}</div></div>
-        ${isUnread(c) ? '<span class="dot" title="Neprečítané"></span>' : ''}
+        ${isUnread(c) ? `<span class="count" title="Neprečítané správy">${unreadCount(c)}</span>` : ''}
       </div>`).join('') || '<p class="muted small" style="padding:1rem">Zatiaľ nemáš žiadne konverzácie.</p>';
     root.querySelectorAll('.conv').forEach(el => el.onclick = () => open(el.dataset.id));
     const cur = state.convs.find(c => c.id === active);
@@ -53,8 +53,10 @@ export default async function (root) {
         ${avatar(c)}<div class="min0"><strong>${esc(title(c))}</strong>
         ${c.is_group ? `<div class="muted small ellipsis">${esc(c.members.filter(m => m !== uid).map(name).join(', '))}</div>` : ''}</div></div>
       <div class="msgs" id="msgs"></div>
-      <form class="chat-form" id="send"><textarea name="body" placeholder="Napíš správu… (Enter odošle, Shift+Enter nový riadok)" maxlength="4000" required></textarea>
-        <button class="btn" title="Odoslať">${icon('send', 16)}</button></form>`;
+      ${c.is_group && !isAdmin()
+        ? `<div class="chat-readonly">${icon('megaphone', 15)} Do skupiny môžu písať iba administrátori.</div>`
+        : `<form class="chat-form" id="send"><textarea name="body" placeholder="Napíš správu… (Enter odošle, Shift+Enter nový riadok)" maxlength="4000" required></textarea>
+        <button class="btn" title="Odoslať">${icon('send', 16)}</button></form>`}`;
     pane.querySelector('#back').onclick = () => chat.classList.remove('open');
 
     const box = pane.querySelector('#msgs');
@@ -76,6 +78,7 @@ export default async function (root) {
     listen(false);
 
     const form = pane.querySelector('#send');
+    if (!form) return;
     const body = form.elements.body;
     body.focus();
     body.onkeydown = e => {
@@ -88,20 +91,23 @@ export default async function (root) {
       body.value = '';
       const batch = writeBatch(db);
       batch.set(doc(collection(db, 'conversations', id, 'messages')), { sender_id: uid, body: text, created_at: serverTimestamp() });
+      const others = Object.fromEntries(c.members.filter(m => m !== uid).map(m => [`unread.${m}`, increment(1)]));
       batch.update(doc(db, 'conversations', id), {
-        last_message_at: serverTimestamp(), last_message: text.slice(0, 80), last_sender: uid, [`reads.${uid}`]: serverTimestamp(),
+        last_message_at: serverTimestamp(), last_message: text.slice(0, 80), last_sender: uid,
+        [`reads.${uid}`]: serverTimestamp(), [`unread.${uid}`]: 0, ...others,
       });
       await batch.commit();
+      logActivity('Správa odoslaná', c.is_group ? `skupina „${c.name}“ (${c.members.length} členov)` : `súkromná správa pre ${title(c)}`);
     });
   }
 
   function markRead(id) {
-    updateDoc(doc(db, 'conversations', id), { [`reads.${uid}`]: serverTimestamp() }).catch(console.error);
+    updateDoc(doc(db, 'conversations', id), { [`reads.${uid}`]: serverTimestamp(), [`unread.${uid}`]: 0 }).catch(console.error);
   }
 
   const newConv = (members, extra) => ({
     members, created_by: uid, created_at: serverTimestamp(), last_message_at: serverTimestamp(),
-    last_message: '', last_sender: '', reads: {}, ...extra,
+    last_message: '', last_sender: '', reads: {}, unread: {}, ...extra,
   });
   // Nová konverzácia sa objaví v odbere s malým oneskorením – počkáme na ňu
   async function openWhenReady(id) {
@@ -128,13 +134,16 @@ export default async function (root) {
       // Súkromná konverzácia má pevné id z oboch účtov – vznikne iba raz
       const id = 'dm_' + [uid, other].sort().join('_');
       const ref = doc(db, 'conversations', id);
-      if (!(await getDoc(ref)).exists()) await setDoc(ref, newConv([uid, other], { name: '', is_group: false }));
+      if (!(await getDoc(ref)).exists()) {
+        await setDoc(ref, newConv([uid, other], { name: '', is_group: false }));
+        logActivity('Nová súkromná konverzácia', `s ${name(other)}`);
+      }
       m.close();
       openWhenReady(id);
     });
   };
 
-  root.querySelector('#grp').onclick = () => {
+  root.querySelector('#grp')?.addEventListener('click', () => {
     const m = modal('Nová skupinová konverzácia', `<form><label>Názov skupiny</label><input name="name" required maxlength="60" placeholder="napr. Tím – projekt Marketing">
       <label>Členovia</label>${peoplePicker(true)}
       <div class="actions"><button type="button" class="btn ghost" data-close>Zrušiť</button><button class="btn">Vytvoriť</button></div></form>`);
@@ -145,10 +154,11 @@ export default async function (root) {
       const members = f.getAll('who');
       if (!members.length) throw new Error('Vyber aspoň jedného člena');
       const ref = await addDoc(col('conversations'), newConv([uid, ...members], { name: f.get('name').trim(), is_group: true }));
+      logActivity('Nová skupina', `„${f.get('name').trim()}“, ${members.length} členov`);
       m.close();
       openWhenReady(ref.id);
     });
-  };
+  });
 
   root.querySelector('#all')?.addEventListener('click', () => {
     const m = modal('Hromadná správa všetkým', `<form><p class="muted small">Vytvorí skupinu so všetkými schválenými študentmi (${state.people.size}).</p>
@@ -157,7 +167,9 @@ export default async function (root) {
     m.el.querySelector('form').onsubmit = e => guard(async () => {
       e.preventDefault();
       const members = [...new Set([uid, ...state.people.keys()])];
-      const ref = await addDoc(col('conversations'), newConv(members, { name: new FormData(e.target).get('name').trim(), is_group: true }));
+      const groupName = new FormData(e.target).get('name').trim();
+      const ref = await addDoc(col('conversations'), newConv(members, { name: groupName, is_group: true }));
+      logActivity('Hromadná skupina pre všetkých', `„${groupName}“, ${members.length} členov`);
       m.close();
       openWhenReady(ref.id);
     });

@@ -1,22 +1,93 @@
 import {
-  db, state, col, doc, query, where, list, cached, bump, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp, toDate, byNewest,
-  createUserWithEmailAndPassword, signOut, getHelperAuth, downloadFile, loadSettings, DEFAULT_SETTINGS,
+  app, db, state, col, doc, query, where, list, cached, bump, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
+  increment, toDate, byNewest, createUserWithEmailAndPassword, signOut, getHelperAuth, downloadFile, removeFile, loadSettings,
+  DEFAULT_SETTINGS, quotaUsage, QUOTA, WARN_AT, PROJECT_ID, logActivity,
   esc, guard, toast, modal, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon,
 } from '../lib.js';
+import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-functions.js';
 
 const TABS = [
+  ['overview', 'activity', 'Prehľad', renderOverview],
   ['users', 'users', 'Používatelia', renderUsers],
   ['forward', 'archive', 'Práce a preposielanie', renderForward],
   ['subjects', 'book', 'Predmety a termíny', renderSubjects],
   ['settings', 'sliders', 'Nastavenia', renderSettings],
 ];
 
-export default async function (root, [tab = 'users']) {
+export default async function (root, [tab = 'overview']) {
   const current = TABS.find(t => t[0] === tab) || TABS[0];
   root.innerHTML = `<div class="title-row"><h1>${icon('shield', 24)} Administrácia</h1></div>
     <div class="tabs">${TABS.map(([k, ic, l]) => `<a href="#/admin/${k}" class="${k === current[0] ? 'active' : ''}">${icon(ic, 15)} ${l}</a>`).join('')}</div>
     <div id="tab"></div>`;
   await current[3](root.querySelector('#tab'));
+}
+
+// ---------------------------------------------------------------- Prehľad spotreby
+const CONSOLE = `https://console.firebase.google.com/project/${PROJECT_ID}`;
+const CLOUD = `https://console.cloud.google.com`;
+
+function meter(q) {
+  const pct = Math.min(1, q.pct);
+  const cls = q.pct >= 0.95 ? 'crit' : q.pct >= WARN_AT ? 'warn' : '';
+  const fmt = v => (q.limit > 1e6 ? fmtSize(v) : v.toLocaleString('sk-SK'));
+  return `<div class="meter ${cls}"><div class="row"><span>${esc(q.label)}${q.exact ? '' : ' <span class="badge">odhad</span>'}</span>
+    <span class="muted">${fmt(q.used)} z ${fmt(q.limit)} · <strong>${Math.round(q.pct * 100)} %</strong></span></div>
+    <div class="bar"><div style="width:${(pct * 100).toFixed(1)}%"></div></div></div>`;
+}
+
+// Prepočíta odhad úložiska zo všetkých odovzdaných prác (číta každú prácu raz)
+async function recalcStats() {
+  const subs = await list(col('submissions'));
+  const stats = { storage_bytes: subs.reduce((a, r) => a + (r.file_size || 0), 0), submissions_count: subs.length };
+  await setDoc(doc(db, 'meta', 'stats'), stats);
+  return stats;
+}
+
+async function renderOverview(el) {
+  const [statsSnap, usageSnap] = await Promise.all([getDoc(doc(db, 'meta', 'stats')), getDoc(doc(db, 'meta', 'usage'))]);
+  const stats = statsSnap.exists() ? statsSnap.data() : await recalcStats();
+  const usage = usageSnap.data() || {};
+  const quotas = quotaUsage(stats, usage);
+  const students = [...state.people.values()].filter(p => p.role !== 'admin').length;
+
+  el.innerHTML = `<div class="grid">
+    <div class="card"><h2>${icon('activity')} Bezplatné limity Firebase</h2>
+      ${quotas.map(meter).join('')}
+      ${usageSnap.exists()
+        ? `<p class="muted small">Presné čísla z Google Cloud, aktualizované ${fmtDateTime(usage.updated_at)}. Denné limity databázy sa nulujú o 9:00 nášho času (polnoc v Kalifornii).</p>
+           <button class="btn ghost sm" id="refresh">${icon('refresh', 14)} Obnoviť teraz</button>`
+        : `<p class="muted small">Zatiaľ sa zobrazuje iba odhad úložiska. Presné čísla (čítania a zápisy v databáze, sťahovanie) sa objavia po nasadení Cloud Function – návod je v README, časť 9.</p>`}
+      <button class="btn ghost sm" id="recalc">${icon('refresh', 14)} Prepočítať odhad úložiska</button>
+    </div>
+    <div class="card"><h2>${icon('file')} Obsah portálu</h2>
+      <div class="meter"><div class="row"><span>Študenti</span><strong>${students}</strong></div></div>
+      <div class="meter"><div class="row"><span>Odovzdané práce</span><strong>${stats.submissions_count ?? 0}</strong></div></div>
+      <div class="meter"><div class="row"><span>Konverzácie, v ktorých si členom</span><strong>${state.convs.length}</strong></div></div>
+      <p class="muted small">Keď sa úložisko blíži k limitu, v časti Práce a preposielanie si práce stiahni ako ZIP a potom ich zmaž tlačidlom Zmazať vybrané.</p>
+    </div>
+    <div class="card"><h2>${icon('external')} Podrobnosti vo Firebase a Google Cloud</h2>
+      <div class="links">
+        <a href="${CONSOLE}/firestore/databases/-default-/usage" target="_blank" rel="noopener">${icon('external', 14)} Spotreba databázy (Firestore Usage)</a>
+        <a href="${CONSOLE}/storage" target="_blank" rel="noopener">${icon('external', 14)} Úložisko súborov (Storage)</a>
+        <a href="${CONSOLE}/usage" target="_blank" rel="noopener">${icon('external', 14)} Prehľad spotreby a fakturácie projektu</a>
+        <a href="${CLOUD}/billing?project=${PROJECT_ID}" target="_blank" rel="noopener">${icon('external', 14)} Fakturácia a rozpočty (Google Cloud)</a>
+      </div>
+      <p class="muted small">Upozornenie e-mailom pri prekročení rozpočtu nastavíš v Google Cloud → Billing → Budgets &amp; alerts.</p>
+    </div>
+  </div>`;
+
+  el.querySelector('#recalc').onclick = e => guard(async () => {
+    e.currentTarget.disabled = true;
+    await recalcStats();
+    toast('Odhad úložiska prepočítaný');
+    renderOverview(el);
+  });
+  el.querySelector('#refresh')?.addEventListener('click', e => guard(async () => {
+    e.currentTarget.disabled = true;
+    await httpsCallable(getFunctions(app, 'europe-west1'), 'refreshUsage')();
+    toast('Spotreba aktualizovaná');
+    renderOverview(el);
+  }));
 }
 
 // ---------------------------------------------------------------- Používatelia
@@ -43,12 +114,16 @@ async function renderUsers(el) {
   };
   el.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => guard(async () => {
     await updateDoc(doc(db, 'users', b.dataset.approve), { approved: b.dataset.v === 'true' });
+    const who = users.find(x => x.id === b.dataset.approve);
+    logActivity(b.dataset.v === 'true' ? 'Schválenie používateľa' : 'Deaktivácia používateľa', `${who?.full_name} (${who?.email})`);
     await bump('users');
     renderUsers(el);
   }));
   el.querySelectorAll('[data-role]').forEach(b => b.onclick = () => guard(async () => {
     if (b.dataset.v === 'admin' && !confirm('Tento používateľ získa plný prístup k administrácii. Pokračovať?')) return;
     await updateDoc(doc(db, 'users', b.dataset.role), { role: b.dataset.v });
+    const who = users.find(x => x.id === b.dataset.role);
+    logActivity(b.dataset.v === 'admin' ? 'Pridelenie roly admin' : 'Odobratie roly admin', `${who?.full_name} (${who?.email})`);
     await bump('users');
     renderUsers(el);
   }));
@@ -78,6 +153,7 @@ function addStudent(done) {
       full_name: f.full_name.trim(), email: cred.user.email, phone: f.phone.trim(), city: f.city.trim(),
       role: 'student', approved: true, created_at: serverTimestamp(),
     });
+    logActivity('Pridanie študenta', `${f.full_name.trim()} (${cred.user.email})`);
     await bump('users');
     m.el.innerHTML = `<p>Účet pre <strong>${esc(f.full_name)}</strong> je vytvorený a schválený.</p>
       <p>E-mail: <strong>${esc(cred.user.email)}</strong><br>Dočasné heslo: <code class="pw">${password}</code></p>
@@ -110,6 +186,7 @@ async function renderForward(el) {
       <button class="btn ghost" id="zip" disabled>${icon('download', 16)} Stiahnuť ZIP</button>
       <button class="btn ghost" id="mail" disabled>${icon('mail', 16)} E-mail lektorovi</button>
       <button class="btn" id="mark" disabled>${icon('check', 16)} Označiť ako odoslané</button>
+      <button class="btn danger" id="del" disabled>${icon('trash', 16)} Zmazať vybrané</button>
     </div>
     <div class="progress hidden" id="prog"><div></div></div>
     <div class="table-wrap" id="list" style="margin-top:.75rem"></div>
@@ -150,6 +227,7 @@ async function renderForward(el) {
     box.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => guard(async () => {
       const r = shown.find(x => x.id === b.dataset.dl);
       downloadBlob(await downloadFile(r.file_path), r.file_name);
+      logActivity('Stiahnutie práce', `${r.student_name} – ${r.file_name}`);
     }));
     updateSel();
   }
@@ -157,7 +235,7 @@ async function renderForward(el) {
   function updateSel() {
     const s = selected();
     el.querySelector('#selinfo').textContent = s.length ? `Vybraných: ${s.length} (${fmtSize(s.reduce((a, r) => a + r.file_size, 0))})` : `${shown.length} prác`;
-    ['zip', 'mail', 'mark'].forEach(id => (el.querySelector('#' + id).disabled = !s.length));
+    ['zip', 'mail', 'mark', 'del'].forEach(id => (el.querySelector('#' + id).disabled = !s.length));
   }
 
   el.querySelector('#zip').onclick = () => guard(async () => {
@@ -174,6 +252,7 @@ async function renderForward(el) {
       const rowsTxt = s.map(r => `${r.student_name}\t${r.title}\t${r.file_name}\t${fmtDateTime(r.created_at)}`).join('\r\n');
       zip.file('zoznam_prac.txt', `Študent\tNázov práce\tSúbor\tOdovzdané\r\n${rowsTxt}`);
       downloadBlob(await zip.generateAsync({ type: 'blob' }), `studenthub_prace_${new Date().toISOString().slice(0, 10)}.zip`);
+      logActivity('Stiahnutie ZIP s prácami', `${s.length} prác`);
     } finally {
       prog.classList.add('hidden');
       prog.firstElementChild.style.width = '0';
@@ -200,7 +279,34 @@ async function renderForward(el) {
     s.forEach(r => Object.assign(r, { status: 'forwarded', forwarded_at: now }));
     delete byStatus.forwarded;
     delete byStatus[''];
+    logActivity('Práce označené ako odoslané lektorovi', `${s.length} prác`);
     toast('Označené ako odoslané');
+    draw();
+  });
+
+  // Uvoľnenie úložiska: zmaže súbory aj záznamy (najprv si ich stiahni cez ZIP)
+  el.querySelector('#del').onclick = () => guard(async () => {
+    const s = selected();
+    const bytes = s.reduce((a, r) => a + r.file_size, 0);
+    if (!confirm(`Natrvalo zmazať ${s.length} prác (${fmtSize(bytes)})?\n\nSúbory sa odstránia z úložiska a študenti ich už neuvidia. Ak si ich chceš ponechať, najprv ich stiahni ako ZIP.`)) return;
+    const prog = el.querySelector('#prog');
+    prog.classList.remove('hidden');
+    try {
+      for (const [i, r] of s.entries()) {
+        await removeFile(r.file_path).catch(e => { if (e.code !== 'storage/object-not-found') throw e; });
+        await deleteDoc(doc(db, 'submissions', r.id));
+        prog.firstElementChild.style.width = `${((i + 1) / s.length) * 100}%`;
+      }
+    } finally {
+      prog.classList.add('hidden');
+      prog.firstElementChild.style.width = '0';
+    }
+    await updateDoc(doc(db, 'meta', 'stats'), { storage_bytes: increment(-bytes), submissions_count: increment(-s.length) }).catch(() => {});
+    const ids = new Set(s.map(r => r.id));
+    Object.keys(byStatus).forEach(k => (byStatus[k] = byStatus[k].filter(r => !ids.has(r.id))));
+    all = all.filter(r => !ids.has(r.id));
+    logActivity('Hromadné zmazanie prác', `${s.length} prác, ${fmtSize(bytes)}`);
+    toast(`Zmazaných ${s.length} prác, uvoľnených ${fmtSize(bytes)}`);
     draw();
   });
 
@@ -234,6 +340,7 @@ async function renderSubjects(el) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     await addDoc(col('subjects'), { name: f.name.trim(), lecturer_name: f.lecturer_name.trim(), lecturer_email: f.lecturer_email.trim() });
+    logActivity('Nový predmet', f.name.trim());
     await bump('subjects');
     renderSubjects(el);
   });
@@ -242,6 +349,7 @@ async function renderSubjects(el) {
     const f = Object.fromEntries(new FormData(e.target));
     const subject = subjects.find(s => s.id === f.subject_id);
     await addDoc(col('assignments'), { subject_id: subject.id, subject_name: subject.name, title: f.title.trim(), due_date: f.due_date || '' });
+    logActivity('Nové zadanie', `${f.title.trim()} – ${subject.name}${f.due_date ? `, termín ${f.due_date}` : ''}`);
     await bump('assignments');
     renderSubjects(el);
   });
@@ -250,6 +358,7 @@ async function renderSubjects(el) {
     const batch = writeBatch(db);
     assignments.filter(a => a.subject_id === b.dataset.dsub).forEach(a => batch.delete(doc(db, 'assignments', a.id)));
     batch.delete(doc(db, 'subjects', b.dataset.dsub));
+    logActivity('Predmet zmazaný', subjects.find(x => x.id === b.dataset.dsub)?.name || '');
     await batch.commit();
     await Promise.all([bump('subjects'), bump('assignments')]);
     renderSubjects(el);
@@ -257,6 +366,7 @@ async function renderSubjects(el) {
   el.querySelectorAll('[data-das]').forEach(b => b.onclick = () => guard(async () => {
     if (!confirm('Zmazať zadanie?')) return;
     await deleteDoc(doc(db, 'assignments', b.dataset.das));
+    logActivity('Zadanie zmazané', assignments.find(x => x.id === b.dataset.das)?.title || '');
     await bump('assignments');
     renderSubjects(el);
   }));
@@ -285,16 +395,19 @@ async function renderSettings(el) {
   });
   el.querySelector('#demo-add').onclick = e => run(e.currentTarget, async m => {
     await m.createDemoStudents(50);
+    logActivity('Ukážkové dáta', 'pridaných 50 študentov');
     toast('Pridaných 50 ukážkových študentov – nájdeš ich v Registri');
   });
   el.querySelector('#demo-notes').onclick = e => run(e.currentTarget, async m => {
     await m.createDemoAnnouncements(state.user.uid);
+    logActivity('Ukážkové dáta', 'pridaných 6 oznamov');
     toast('Pridaných 6 ukážkových oznamov – pozri Nástenku');
   });
   el.querySelector('#demo-del').onclick = e => {
     if (!confirm('Zmazať všetkých ukážkových študentov aj ukážkové oznamy?')) return;
     run(e.currentTarget, async m => {
       const { users, notes } = await m.deleteDemoData();
+      logActivity('Ukážkové dáta', `zmazaných ${users} študentov a ${notes} oznamov`);
       toast(`Zmazaných ${users} ukážkových študentov a ${notes} oznamov`);
     });
   };
@@ -308,6 +421,7 @@ async function renderSettings(el) {
       max_file_mb: Math.min(50, Math.max(1, Number(f.get('max_file_mb')) || DEFAULT_SETTINGS.max_file_mb)),
     });
     await bump('settings');
+    await logActivity('Nastavenia portálu', `práce ${f.has('uploads_enabled') ? 'zap.' : 'vyp.'}, správy ${f.has('messaging_enabled') ? 'zap.' : 'vyp.'}, register ${f.has('register_enabled') ? 'zap.' : 'vyp.'}, limit ${f.get('max_file_mb')} MB`);
     toast('Nastavenia uložené – menu sa obnoví');
     setTimeout(() => location.reload(), 800);
   });

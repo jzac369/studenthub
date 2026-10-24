@@ -1,4 +1,4 @@
-import { db, state, col, doc, addDoc, updateDoc, deleteDoc, cached, bump, serverTimestamp, toDate, esc, guard, toast, modal, fmtDate, icon, isAdmin } from '../lib.js';
+import { db, state, col, doc, addDoc, updateDoc, deleteDoc, cached, bump, logActivity, serverTimestamp, toDate, esc, guard, toast, modal, fmtDate, icon, isAdmin } from '../lib.js';
 
 const COLORS = ['yellow', 'pink', 'blue', 'green', 'orange', 'purple'];
 // Stabilné mierne natočenie lístka podľa jeho id
@@ -26,6 +26,7 @@ export default async function (root) {
     root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
       if (!confirm('Naozaj zmazať tento oznam?')) return;
       await deleteDoc(doc(db, 'announcements', b.dataset.del));
+      logActivity('Nástenka: oznam zmazaný', notes.find(n => n.id === b.dataset.del)?.title || '');
       await bump('announcements');
       render();
     }));
@@ -46,6 +47,7 @@ export default async function (root) {
       else await addDoc(col('announcements'), { ...row, author_id: state.user.uid, created_at: serverTimestamp() });
       await bump('announcements');
       m.close();
+      logActivity(note.id ? 'Nástenka: oznam upravený' : 'Nástenka: nový oznam', row.title);
       toast('Uložené');
       render();
     });

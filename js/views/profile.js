@@ -1,5 +1,5 @@
 import {
-  auth, db, state, doc, updateDoc, bump, updatePassword, reauthenticateWithCredential, EmailAuthProvider, esc, guard, toast, icon,
+  auth, db, state, doc, updateDoc, bump, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider, esc, guard, toast, icon,
 } from '../lib.js';
 
 export default async function (root) {
@@ -29,6 +29,7 @@ export default async function (root) {
     await bump('users');
     Object.assign(p, row);
     Object.assign(state.people.get(p.id) || {}, row);
+    logActivity('Úprava profilu', 'meno, telefón alebo mesto');
     toast('Profil uložený');
   });
 
@@ -40,6 +41,7 @@ export default async function (root) {
     await reauthenticateWithCredential(user, EmailAuthProvider.credential(user.email, f.current));
     await updatePassword(user, f.password);
     e.target.reset();
+    logActivity('Zmena hesla');
     toast('Heslo zmenené');
   });
 }

@@ -1,4 +1,4 @@
-import { state, col, query, where, list, cached, esc, fmtDate, feature, icon, today, isUnread, toDate } from '../lib.js';
+import { state, col, query, where, list, cached, esc, fmtDate, feature, icon, today, unreadCount, toDate } from '../lib.js';
 import { lessonCard, runsThisWeek, sortLessons } from './schedule.js';
 
 export default async function (root) {
@@ -16,7 +16,7 @@ export default async function (root) {
   const latest = ann.sort((a, b) => (!!b.pinned - !!a.pinned) || (toDate(b.created_at) - toDate(a.created_at))).slice(0, 3);
   const upcoming = due.sort((a, b) => a.due_date.localeCompare(b.due_date)).slice(0, 6);
   const todays = lessons.filter(runsThisWeek).sort(sortLessons);
-  const unreadN = state.convs.filter(isUnread).length;
+  const unreadN = state.convs.reduce((sum, c) => sum + unreadCount(c), 0);
   const firstName = state.profile.full_name.split(' ')[0] || '';
   const daysLeft = d => Math.round((new Date(d) - new Date(day)) / 864e5);
   const tile = (href, ic, label, value, sub) => `<a class="card tile" href="${href}"><div class="tile-ic">${icon(ic, 20)}</div>
@@ -25,7 +25,7 @@ export default async function (root) {
   root.innerHTML = `<h1>Ahoj, ${esc(firstName)}</h1>
   <div class="grid">
     ${feature('uploads_enabled') ? tile('#/prace', 'file', 'Moje odovzdané práce', subs.length, `${subs.filter(s => s.status === 'forwarded').length} odoslaných lektorovi`) : ''}
-    ${feature('messaging_enabled') ? tile('#/spravy', 'message', 'Neprečítané konverzácie', unreadN, 'otvoriť správy') : ''}
+    ${feature('messaging_enabled') ? tile('#/spravy', 'message', 'Neprečítané správy', unreadN, 'otvoriť správy') : ''}
     ${tile('#/rozvrh', 'calendar', 'Dnes v rozvrhu', todays.length, todays.length ? `prvá o ${esc(todays[0].start)}` : 'dnes voľno')}
   </div>
   <div class="grid" style="margin-top:1rem">

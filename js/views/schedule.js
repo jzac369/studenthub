@@ -1,4 +1,4 @@
-import { db, col, doc, addDoc, updateDoc, deleteDoc, cached, bump, esc, guard, toast, modal, icon, isAdmin } from '../lib.js';
+import { db, col, doc, addDoc, updateDoc, deleteDoc, cached, bump, logActivity, esc, guard, toast, modal, icon, isAdmin } from '../lib.js';
 
 export const DAYS = ['Pondelok', 'Utorok', 'Streda', 'Štvrtok', 'Piatok', 'Sobota'];
 export const TYPES = { lecture: 'Prednáška', seminar: 'Seminár', lab: 'Cvičenie', other: 'Iné' };
@@ -61,6 +61,8 @@ export default async function (root) {
     root.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
       if (!confirm('Zmazať túto hodinu z rozvrhu?')) return;
       await deleteDoc(doc(db, 'schedule', b.dataset.del));
+      const gone = lessons.find(l => l.id === b.dataset.del);
+      logActivity('Rozvrh: hodina zmazaná', gone ? `${gone.subject}, ${DAYS[gone.day - 1]} ${gone.start}` : '');
       await bump('schedule');
       render();
     }));
@@ -94,6 +96,7 @@ export default async function (root) {
       else await addDoc(col('schedule'), row);
       await bump('schedule');
       m.close();
+      logActivity(l.id ? 'Rozvrh: hodina upravená' : 'Rozvrh: nová hodina', `${row.subject}, ${DAYS[row.day - 1]} ${row.start}–${row.end}`);
       toast('Rozvrh uložený');
       render();
     });

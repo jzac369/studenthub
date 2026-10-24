@@ -30,13 +30,31 @@ service cloud.firestore {
       allow delete: if admin();
     }
 
-    // Časy poslednej zmeny zbierok – podľa nich si prehliadač obnovuje svoju cache.
-    // Študent smie označiť iba zmenu registra (keď si upraví profil).
+    // meta/versions – časy poslednej zmeny zbierok (cache v prehliadači); študent smie označiť iba zmenu registra
+    // meta/stats    – odhad obsadeného úložiska; študent ho mení pri nahratí/zmazaní práce (max. ±50 MB naraz)
+    // meta/usage    – presná spotreba z Google Cloud, zapisuje ju iba Cloud Function; číta iba admin
     match /meta/{id} {
-      allow read: if approved();
+      allow read: if approved() && (id != 'usage' || admin());
       allow create: if admin();
-      allow update: if admin() || (approved()
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['users']));
+      allow update: if admin()
+                    || (id == 'versions' && approved()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['users']))
+                    || (id == 'stats' && approved()
+                        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['storage_bytes', 'submissions_count'])
+                        && request.resource.data.storage_bytes - resource.data.storage_bytes <= 52428800
+                        && request.resource.data.storage_bytes - resource.data.storage_bytes >= -52428800
+                        && request.resource.data.submissions_count - resource.data.submissions_count <= 1
+                        && request.resource.data.submissions_count - resource.data.submissions_count >= -1);
+    }
+
+    // Log aktivít – každý prihlásený zapisuje iba záznamy o sebe, čítať a mazať ich môže iba admin
+    match /logs/{id} {
+      allow create: if signedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.at == request.time
+                    && request.resource.data.action is string && request.resource.data.action.size() <= 80
+                    && request.resource.data.detail is string && request.resource.data.detail.size() <= 300;
+      allow read, delete: if admin();
     }
 
     match /settings/{id} {
@@ -79,21 +97,24 @@ service cloud.firestore {
     // Admin NEvidí cudzie súkromné správy – iba členovia konverzácie.
     match /conversations/{cid} {
       allow read: if approved() && (resource == null || request.auth.uid in resource.data.members);
+      // Súkromnú konverzáciu (2 členovia) založí ktokoľvek, skupinu iba admin
       allow create: if approved() && enabled('messaging_enabled')
                     && request.resource.data.created_by == request.auth.uid
                     && request.auth.uid in request.resource.data.members
                     && request.resource.data.members.size() <= 400
-                    && (request.resource.data.is_group == true || request.resource.data.members.size() == 2);
+                    && ((request.resource.data.is_group == false && request.resource.data.members.size() == 2)
+                        || (request.resource.data.is_group == true && admin()));
       allow update: if approved() && request.auth.uid in resource.data.members
                     && request.resource.data.diff(resource.data).affectedKeys()
-                         .hasOnly(['last_message_at', 'last_message', 'last_sender', 'reads']);
+                         .hasOnly(['last_message_at', 'last_message', 'last_sender', 'reads', 'unread']);
 
       match /messages/{mid} {
-        function member() {
-          return request.auth.uid in get(/databases/$(database)/documents/conversations/$(cid)).data.members;
-        }
+        function conv() { return get(/databases/$(database)/documents/conversations/$(cid)).data; }
+        function member() { return request.auth.uid in conv().members; }
         allow read: if approved() && member();
+        // Do skupín píšu iba admini, súkromné správy obaja členovia
         allow create: if approved() && enabled('messaging_enabled') && member()
+                      && (conv().is_group != true || admin())
                       && request.resource.data.sender_id == request.auth.uid
                       && request.resource.data.body is string
                       && request.resource.data.body.size() > 0

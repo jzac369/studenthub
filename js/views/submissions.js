@@ -1,6 +1,6 @@
 import {
   db, state, col, doc, query, where, list, cached, addDoc, deleteDoc, serverTimestamp, toDate, byNewest,
-  uploadFile, downloadFile, removeFile, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon,
+  uploadFile, downloadFile, removeFile, adjustStats, logActivity, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon,
 } from '../lib.js';
 
 export const ALLOWED = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg'];
@@ -20,7 +20,9 @@ export default async function (root) {
     </div>
     <label>Názov práce</label><input name="title" required maxlength="150" placeholder="napr. Seminárna práca – Marketingový mix">
     <label>Poznámka pre lektora (nepovinné)</label><textarea name="note" rows="2" maxlength="1000"></textarea>
-    <label>Súbor (max ${maxMb} MB; ${ALLOWED.join(', ')})</label><input name="file" type="file" required accept="${ALLOWED.map(x => '.' + x).join(',')}">
+    <label>Súbor (max. ${maxMb} MB)</label>
+    <label class="file-pick"><input name="file" type="file" accept="${ALLOWED.map(x => '.' + x).join(',')}">
+      <span class="btn ghost">${icon('file', 16)} Vybrať súbor</span><span class="file-name muted">Nie je vybraný žiadny súbor</span></label>
     <div class="progress hidden" id="prog"><div></div></div>
     <button class="btn" style="margin-top:1rem" id="send">${icon('upload', 16)} Odovzdať</button>
   </form>
@@ -28,6 +30,14 @@ export default async function (root) {
 
   const form = root.querySelector('#up');
   const el = form.elements;
+  // Vlastné tlačidlo výberu súboru – zobrazí názov a veľkosť vybraného súboru
+  el.file.onchange = () => {
+    const f = el.file.files[0];
+    const name = form.querySelector('.file-name');
+    name.textContent = f ? `${f.name} (${fmtSize(f.size)})` : 'Nie je vybraný žiadny súbor';
+    name.classList.toggle('muted', !f);
+  };
+
   el.subject_id.onchange = () => {
     const opts = assignments.filter(a => a.subject_id === el.subject_id.value);
     el.assignment_id.innerHTML = '<option value="">— bez zadania —</option>' +
@@ -37,6 +47,7 @@ export default async function (root) {
   form.onsubmit = e => guard(async () => {
     e.preventDefault();
     const file = el.file.files[0];
+    if (!file) throw new Error('Vyber súbor, ktorý chceš odovzdať');
     const ext = file.name.split('.').pop().toLowerCase();
     if (!ALLOWED.includes(ext)) throw new Error(`Nepovolený typ súboru .${ext}`);
     if (file.size > maxMb * 1048576) throw new Error(`Súbor má ${fmtSize(file.size)}, maximum je ${maxMb} MB`);
@@ -63,8 +74,11 @@ export default async function (root) {
         await removeFile(path).catch(() => {});
         throw err;
       }
+      adjustStats(file.size, 1);
+      logActivity('Odovzdanie práce', `„${el.title.value.trim()}“ – ${subject.name}, ${file.name} (${fmtSize(file.size)})`);
       toast('Práca bola odovzdaná');
       form.reset();
+      el.file.onchange();
       el.subject_id.onchange();
       await refresh();
     } finally {
@@ -91,12 +105,15 @@ export default async function (root) {
     box.querySelectorAll('[data-dl]').forEach(b => b.onclick = () => guard(async () => {
       const r = items.find(x => x.id === b.dataset.dl);
       downloadBlob(await downloadFile(r.file_path), r.file_name);
+      logActivity('Stiahnutie vlastnej práce', r.file_name);
     }));
     box.querySelectorAll('[data-del]').forEach(b => b.onclick = () => guard(async () => {
       const r = items.find(x => x.id === b.dataset.del);
       if (!confirm(`Zmazať prácu „${r.title}“?`)) return;
       await deleteDoc(doc(db, 'submissions', r.id));
       await removeFile(r.file_path).catch(() => {});
+      adjustStats(-r.file_size, -1);
+      logActivity('Zmazanie práce', `„${r.title}“ – ${r.file_name}`);
       toast('Zmazané');
       refresh();
     }));

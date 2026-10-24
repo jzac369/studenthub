@@ -6,7 +6,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-auth.js';
 import {
   initializeFirestore, persistentLocalCache, persistentMultipleTabManager, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where,
-  orderBy, limit, onSnapshot, serverTimestamp, writeBatch,
+  orderBy, limit, onSnapshot, serverTimestamp, writeBatch, increment,
 } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-firestore.js';
 import { getStorage, ref, uploadBytesResumable, getBlob, deleteObject } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-storage.js';
 import { firebaseConfig } from './config.js';
@@ -15,7 +15,7 @@ export {
   onAuthStateChanged, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendPasswordResetEmail,
   signOut, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit,
-  onSnapshot, serverTimestamp, writeBatch,
+  onSnapshot, serverTimestamp, writeBatch, increment,
 };
 export { icon } from './icons.js';
 
@@ -119,7 +119,8 @@ export const fmtDateTime = d => (d ? toDate(d).toLocaleString('sk-SK', { dateSty
 export function fmtSize(b) {
   if (b < 1024) return `${b} B`;
   if (b < 1048576) return `${(b / 1024).toFixed(0)} kB`;
-  return `${(b / 1048576).toFixed(1)} MB`;
+  if (b < 1073741824) return `${(b / 1048576).toFixed(1)} MB`;
+  return `${(b / 1073741824).toFixed(2)} GB`;
 }
 export const initials = name => (name || '?').split(/\s+/).map(p => p[0]).slice(0, 2).join('').toUpperCase();
 export const today = () => new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD v miestnom čase
@@ -178,6 +179,67 @@ export async function bump(name) {
   await setDoc(doc(db, 'meta', 'versions'), { [name]: serverTimestamp() }, { merge: true });
 }
 
+// ---------- Log aktivít (vidia ho iba admini) ----------
+// Zapisuje kto, čo a kedy urobil. Obsah správ ani heslá sa nikdy nezapisujú.
+export function logActivity(action, detail = '') {
+  const user = auth.currentUser;
+  if (!user) return Promise.resolve();
+  const p = state.profile || {};
+  return addDoc(col('logs'), {
+    uid: user.uid, name: p.full_name || '', email: p.email || user.email || '', role: p.role || 'student',
+    action, detail: String(detail).slice(0, 300), page: location.hash || '#/', at: serverTimestamp(),
+    device: /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent) ? 'mobil' : 'počítač',
+  }).catch(e => console.warn('Záznam do logu sa nepodaril', e));
+}
+
+// Prvý záznam v relácii prehliadača: prihlásenie, registrácia alebo len otvorenie portálu
+export function logSessionStart() {
+  const key = `sh-session:${auth.currentUser?.uid}`;
+  try {
+    if (sessionStorage.getItem(key)) return;
+    const how = sessionStorage.getItem('sh-login');
+    sessionStorage.setItem(key, '1');
+    sessionStorage.removeItem('sh-login');
+    logActivity(how === 'signup' ? 'Registrácia' : how === 'login' ? 'Prihlásenie' : 'Otvorenie portálu',
+      state.profile?.approved ? '' : 'účet čaká na schválenie');
+  } catch {}
+}
+
+export async function logout() {
+  await logActivity('Odhlásenie');
+  try { sessionStorage.removeItem(`sh-session:${auth.currentUser?.uid}`); } catch {}
+  await signOut(auth);
+}
+
+// ---------- Spotreba a bezplatné limity ----------
+export const PROJECT_ID = firebaseConfig.projectId;
+export const QUOTA = {
+  storage_bytes: 5 * 1024 ** 3,        // Storage: 5 GB uložených
+  downloaded_bytes: 100 * 1024 ** 3,   // Storage: 100 GB stiahnutých za mesiac
+  reads: 50000, writes: 20000, deletes: 20000, // Firestore: za deň
+};
+export const WARN_AT = 0.75;
+
+// Odhad obsadeného úložiska – mení sa pri nahratí a zmazaní práce
+export function adjustStats(bytes, count) {
+  return updateDoc(doc(db, 'meta', 'stats'), { storage_bytes: increment(bytes), submissions_count: increment(count) })
+    .catch(e => console.warn('Štatistiku úložiska sa nepodarilo aktualizovať', e));
+}
+
+// Zoznam limitov s percentom využitia; presné čísla z Cloud Function majú prednosť pred odhadom
+export function quotaUsage(stats = {}, usage = {}) {
+  const items = [];
+  const add = (label, used, limit, exact) => used != null && items.push({ label, used, limit, pct: used / limit, exact });
+  add('Úložisko prác', usage.storage?.bytes ?? stats.storage_bytes, QUOTA.storage_bytes, usage.storage?.bytes != null);
+  if (usage.storage) add('Stiahnuté zo Storage (mesiac)', usage.storage.downloaded_bytes_month, QUOTA.downloaded_bytes, true);
+  if (usage.firestore) {
+    add('Čítania z databázy (dnes)', usage.firestore.reads, QUOTA.reads, true);
+    add('Zápisy do databázy (dnes)', usage.firestore.writes, QUOTA.writes, true);
+    add('Mazania v databáze (dnes)', usage.firestore.deletes, QUOTA.deletes, true);
+  }
+  return items;
+}
+
 export function clearCache() {
   try {
     Object.keys(localStorage).filter(k => k.startsWith(CACHE_PREFIX)).forEach(k => localStorage.removeItem(k));
@@ -195,10 +257,14 @@ export async function loadSettings() {
   state.settings = { ...DEFAULT_SETTINGS, ...(await cached('settings')) };
 }
 
-export function isUnread(c) {
+// Počet neprečítaných správ v konverzácii – odosielateľ zvyšuje počítadlo ostatným členom
+export function unreadCount(c) {
+  const n = c.unread?.[state.user.uid];
+  if (n != null) return n;
   const read = toDate(c.reads?.[state.user.uid]);
-  return !!c.last_sender && c.last_sender !== state.user.uid && (!read || toDate(c.last_message_at) > read);
+  return c.last_sender && c.last_sender !== state.user.uid && (!read || toDate(c.last_message_at) > read) ? 1 : 0;
 }
+export const isUnread = c => unreadCount(c) > 0;
 
 export function downloadBlob(blob, filename) {
   const a = document.createElement('a');

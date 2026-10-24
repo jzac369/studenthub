@@ -1,6 +1,6 @@
 import {
   auth, db, state, configured, $, $$, esc, icon, isAdmin, feature, initials, toggleTheme, loadPeople, loadSettings,
-  watchVersions, clearCache, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, errMsg,
+  watchVersions, clearCache, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
 } from './lib.js';
 import { logo } from './icons.js';
 import { renderAuth, renderPending, signupDone } from './auth.js';
@@ -14,12 +14,14 @@ const NAV = [
   { key: 'register', label: 'Register',      icon: 'users',    load: () => import('./views/register.js'), feature: 'register_enabled' },
   { key: 'profil',   label: 'Môj profil',    icon: 'user',     load: () => import('./views/profile.js') },
   { key: 'admin',    label: 'Administrácia', icon: 'shield',   load: () => import('./views/admin.js'), admin: true },
+  { key: 'log',      label: 'Log',           icon: 'activity', load: () => import('./views/log.js'), admin: true },
 ];
 
 const app = $('#app');
 let cleanup = null;
 let unsubConvs = null;
 let unsubVersions = null;
+let lastPage = '';
 // Stránky, ktoré sa prekreslia, keď admin niečo zmení (nástenka, rozvrh…)
 const LIVE_VIEWS = ['', 'nastenka', 'rozvrh', 'register'];
 
@@ -48,6 +50,7 @@ async function handleSession(user) {
       snap = await getDoc(ref);
     }
     state.profile = { id: user.uid, ...snap.data() };
+    logSessionStart();
     if (!state.profile.approved) return renderPending(app, state.profile);
     let shellReady = false;
     const versions = watchVersions(async () => {
@@ -96,6 +99,7 @@ function renderShell() {
     </aside>
     <div class="min0">
       <div class="topbar"><button class="icon-btn" id="menu" aria-label="Menu">${icon('menu', 22)}</button><div class="logo">${logo(21)}</div></div>
+      <div id="quota-warn"></div>
       <main class="main" id="view"></main>
     </div>
   </div>`;
@@ -103,13 +107,13 @@ function renderShell() {
   $('#menu').onclick = () => shell.classList.toggle('nav-open');
   $$('.nav a').forEach(a => a.addEventListener('click', () => shell.classList.remove('nav-open')));
   $('#theme').onclick = toggleTheme;
-  $('#logout').onclick = () => signOut(auth);
+  $('#logout').onclick = () => logout();
 
   // Jeden živý odber konverzácií – odznak neprečítaných aj zoznam v Správach
   if (feature('messaging_enabled')) {
     unsubConvs = onSnapshot(query(col('conversations'), where('members', 'array-contains', state.user.uid)), snap => {
       state.convs = rows(snap);
-      const n = state.convs.filter(isUnread).length;
+      const n = state.convs.reduce((sum, c) => sum + unreadCount(c), 0);
       const el = $('#unread');
       if (el) {
         el.textContent = n;
@@ -121,6 +125,22 @@ function renderShell() {
 
   window.onhashchange = route;
   route();
+  if (isAdmin()) checkQuota();
+}
+
+// Upozornenie pre adminov, keď sa niektorý bezplatný limit naplní na 75 %
+export async function checkQuota() {
+  const box = $('#quota-warn');
+  if (!box) return;
+  try {
+    const [stats, usage] = await Promise.all(['stats', 'usage'].map(async id => (await getDoc(doc(db, 'meta', id))).data() || {}));
+    const hot = quotaUsage(stats, usage).filter(q => q.pct >= WARN_AT);
+    box.innerHTML = hot.length ? `<div class="quota-banner ${hot.some(q => q.pct >= 0.95) ? 'crit' : ''}">${icon('shield', 18)}
+      <div><strong>Blíži sa bezplatný limit Firebase:</strong> ${hot.map(q => `${esc(q.label)} ${Math.round(q.pct * 100)} %`).join(' · ')}
+      <a href="#/admin/overview">Zobraziť prehľad</a></div></div>` : '';
+  } catch (e) {
+    console.warn(e);
+  }
 }
 
 async function route() {
@@ -136,6 +156,9 @@ async function route() {
     return;
   }
   root.innerHTML = '<p class="muted">Načítavam…</p>';
+  const page = item.label + (parts[1] ? ` / ${parts[1]}` : '');
+  if (page !== lastPage) logActivity('Zobrazenie stránky', page);
+  lastPage = page;
   try {
     const mod = await item.load();
     cleanup = (await mod.default(root, parts.slice(1))) || null;
