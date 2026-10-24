@@ -1,16 +1,131 @@
 {
   "title": "Rozvrh ZS 2026/2027 – MAN Dubnica, externá forma, 1. ročník (Bc.)",
   "lessons": [
-    { "date": "2026-10-15", "start": "", "end": "", "subject": "Online zápis", "type": "other", "room": "online", "teacher": "", "note": "do 15. 10. 2026" },
-    { "date": "2026-10-16", "start": "16:00", "end": "20:00", "subject": "Marketing + administratívny zápis", "type": "lecture", "room": "miestnosť č. 1,4", "teacher": "Mgr. Dohnanská / PaedDr. Kollár" },
-    { "date": "2026-10-24", "start": "08:00", "end": "12:30", "subject": "Právo pre manažérov I.", "type": "lecture", "room": "online", "teacher": "JUDr. Filip Hrmo, PhD." },
-    { "date": "2026-10-24", "start": "13:30", "end": "18:00", "subject": "Právo pre manažérov I.", "type": "lecture", "room": "online", "teacher": "JUDr. Filip Hrmo, PhD." },
-    { "date": "2026-10-30", "start": "14:00", "end": "20:00", "subject": "Informatika pre manažérov I.", "type": "lecture", "room": "online", "teacher": "Mgr. Ing. Michalec" },
-    { "date": "2026-11-21", "start": "08:00", "end": "12:30", "subject": "Matematika", "type": "lecture", "room": "online", "teacher": "doc. Hasajová" },
-    { "date": "2026-11-21", "start": "13:30", "end": "18:00", "subject": "Matematika", "type": "lecture", "room": "online", "teacher": "doc. Hasajová" },
-    { "date": "2026-11-27", "start": "14:00", "end": "20:00", "subject": "Informatika pre manažérov I.", "type": "lecture", "room": "online", "teacher": "Mgr. Ing. Michalec" },
-    { "date": "2026-12-04", "start": "14:00", "end": "20:00", "subject": "Všeobecná psychológia", "type": "lecture", "room": "online", "teacher": "doc. Čepelová" },
-    { "date": "2026-12-05", "start": "08:00", "end": "12:30", "subject": "Podniková ekonomika", "type": "lecture", "room": "online", "teacher": "Mgr. Ing. Uríčková" },
-    { "date": "2026-12-05", "start": "13:30", "end": "18:00", "subject": "Podniková ekonomika", "type": "lecture", "room": "online", "teacher": "Mgr. Ing. Uríčková" }
+    {
+      "date": "2026-10-15",
+      "start": "",
+      "end": "",
+      "subject": "Online zápis",
+      "type": "other",
+      "room": "online",
+      "teacher": "",
+      "note": "do 15. 10. 2026"
+    },
+    {
+      "date": "2026-10-16",
+      "start": "16:00",
+      "end": "20:00",
+      "subject": "Marketing + administratívny zápis",
+      "type": "lecture",
+      "room": "miestnosť č. 1,4",
+      "teacher": "Mgr. Dohnanská / PaedDr. Kollár"
+    },
+    {
+      "date": "2026-10-24",
+      "start": "08:00",
+      "end": "12:30",
+      "subject": "Právo pre manažérov I.",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "JUDr. Filip Hrmo, PhD."
+    },
+    {
+      "date": "2026-10-24",
+      "start": "13:30",
+      "end": "18:00",
+      "subject": "Právo pre manažérov I.",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "JUDr. Filip Hrmo, PhD."
+    },
+    {
+      "date": "2026-10-30",
+      "start": "14:00",
+      "end": "20:00",
+      "subject": "Informatika pre manažérov I.",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "Mgr. Ing. Michalec"
+    },
+    {
+      "date": "2026-11-21",
+      "start": "08:00",
+      "end": "12:30",
+      "subject": "Matematika",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "doc. Hasajová"
+    },
+    {
+      "date": "2026-11-21",
+      "start": "13:30",
+      "end": "18:00",
+      "subject": "Matematika",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "doc. Hasajová"
+    },
+    {
+      "date": "2026-11-27",
+      "start": "14:00",
+      "end": "20:00",
+      "subject": "Informatika pre manažérov I.",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "Mgr. Ing. Michalec"
+    },
+    {
+      "date": "2026-12-04",
+      "start": "14:00",
+      "end": "20:00",
+      "subject": "Všeobecná psychológia",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "doc. Čepelová"
+    },
+    {
+      "date": "2026-12-05",
+      "start": "08:00",
+      "end": "12:30",
+      "subject": "Podniková ekonomika",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "Mgr. Ing. Uríčková"
+    },
+    {
+      "date": "2026-12-05",
+      "start": "13:30",
+      "end": "18:00",
+      "subject": "Podniková ekonomika",
+      "type": "lecture",
+      "room": "online",
+      "teacher": "Mgr. Ing. Uríčková"
+    }
+  ],
+  "subjects": [
+    {
+      "name": "Marketing",
+      "lecturer_name": "Mgr. Dohnanská / PaedDr. Kollár"
+    },
+    {
+      "name": "Právo pre manažérov I.",
+      "lecturer_name": "JUDr. Filip Hrmo, PhD."
+    },
+    {
+      "name": "Informatika pre manažérov I.",
+      "lecturer_name": "Mgr. Ing. Michalec"
+    },
+    {
+      "name": "Matematika",
+      "lecturer_name": "doc. Hasajová"
+    },
+    {
+      "name": "Všeobecná psychológia",
+      "lecturer_name": "doc. Čepelová"
+    },
+    {
+      "name": "Podniková ekonomika",
+      "lecturer_name": "Mgr. Ing. Uríčková"
+    }
   ]
 }

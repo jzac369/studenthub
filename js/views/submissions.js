@@ -13,7 +13,8 @@ export default async function (root) {
   assignments.sort((a, b) => (a.due_date || '9').localeCompare(b.due_date || '9'));
 
   root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} Moje práce</h1></div>
-  <form class="card" id="up"><h2>Odovzdať novú prácu</h2>
+  ${subjects.length ? '' : '<div class="card"><p class="muted" style="margin:0">Administrátor ešte nepridal predmety, preto zatiaľ nie je možné odovzdať prácu.</p></div>'}
+  <form class="card ${subjects.length ? '' : 'hidden'}" id="up"><h2>Odovzdať novú prácu</h2>
     <div class="grid" style="gap:0 1rem">
       <div><label>Predmet</label><select name="subject_id" required><option value="">— vyber —</option>${subjects.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></div>
       <div><label>Zadanie (nepovinné)</label><select name="assignment_id"><option value="">— bez zadania —</option></select></div>

@@ -7,7 +7,7 @@ const fs = require('fs');
 const path = require('path');
 
 const file = process.argv[2];
-const { title, lessons } = JSON.parse(fs.readFileSync(file, 'utf8'));
+const { title, lessons, subjects = [] } = JSON.parse(fs.readFileSync(file, 'utf8'));
 const source = path.basename(file, '.json');
 const isoDay = d => new Date(d + 'T12:00:00Z').getUTCDay() || 7;
 
@@ -26,7 +26,11 @@ const db = getFirestore();
     });
   }
   if (title) batch.set(db.doc('settings/app'), { schedule_title: title }, { merge: true });
-  batch.set(db.doc('meta/versions'), { schedule: FieldValue.serverTimestamp(), settings: FieldValue.serverTimestamp() }, { merge: true });
+  // Predmety pridáme iba tie, ktoré ešte neexistujú (podľa názvu)
+  const existing = new Set((await db.collection('subjects').get()).docs.map(d => d.data().name));
+  const added = subjects.filter(s => !existing.has(s.name));
+  added.forEach(s => batch.set(db.collection('subjects').doc(), { name: s.name, lecturer_name: s.lecturer_name || '', lecturer_email: s.lecturer_email || '' }));
+  batch.set(db.doc('meta/versions'), { schedule: FieldValue.serverTimestamp(), settings: FieldValue.serverTimestamp(), subjects: FieldValue.serverTimestamp() }, { merge: true });
   await batch.commit();
-  console.log(`Hotovo: zmazaných ${old.size}, zapísaných ${lessons.length} hodín (${source}).`);
+  console.log(`Hotovo: zmazaných ${old.size}, zapísaných ${lessons.length} hodín (${source}), nových predmetov ${added.length}.`);
 })().catch(e => { console.error(e.message); process.exit(1); });
