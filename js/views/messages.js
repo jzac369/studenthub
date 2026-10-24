@@ -3,11 +3,16 @@ import {
   serverTimestamp, writeBatch, increment, rows, toDate, isUnread, unreadCount, logActivity, avatar as personAvatar, esc, guard, modal, fmtDateTime, initials, icon, isAdmin, loadPeople,
 } from '../lib.js';
 
+// Emotikony v paneli pri písaní správy
+const EMOJI = ['😀', '😂', '😊', '😍', '😉', '😎', '🤔', '😅', '😢', '😮', '😴', '🥳', '👍', '👎', '👏', '🙏', '💪', '👋', '🤝', '✌️',
+  '❤️', '🔥', '⭐', '✅', '❌', '⚠️', '🎉', '💡', '📚', '📝', '📎', '📅', '⏰', '🎓', '💻', '☕', '🍕', '🚗', '😬', '🙈'];
+
 export default async function (root) {
   const uid = state.user.uid;
   await loadPeople();
   let active = null;
   let unsubMsgs = null;
+  let receiptCleanup = null;
   const PAGE = 25; // správ na jedno načítanie – staršie len na požiadanie
 
   root.innerHTML = `<div class="chat" id="chat">
@@ -60,21 +65,49 @@ export default async function (root) {
       <div class="msgs" id="msgs"></div>
       ${c.is_group && !isAdmin()
         ? `<div class="chat-readonly">${icon('megaphone', 15)} Do skupiny môžu písať iba administrátori.</div>`
-        : `<form class="chat-form" id="send"><textarea name="body" placeholder="Napíš správu…" title="Enter odošle, Shift+Enter nový riadok" maxlength="4000" required></textarea>
+        : `<form class="chat-form" id="send">
+        <div class="emoji-panel hidden" id="emoji">${EMOJI.map(e => `<button type="button" class="emoji" data-e="${e}">${e}</button>`).join('')}</div>
+        <button type="button" class="icon-btn emoji-btn" id="emoji-btn" title="Emotikony" aria-label="Emotikony">${icon('smile', 20)}</button>
+        <textarea name="body" placeholder="Napíš správu…" title="Enter odošle, Shift+Enter nový riadok" maxlength="4000" required></textarea>
         <button class="btn" title="Odoslať">${icon('send', 16)}</button></form>`}`;
     pane.querySelector('#back').onclick = () => chat.classList.remove('open');
 
     const box = pane.querySelector('#msgs');
     let shown = PAGE;
+    let lastMine = null;
+    // „Prečítané“ podľa času, kedy si ostatní členovia naposledy otvorili konverzáciu (pole reads)
+    function drawReceipt() {
+      box.querySelector('.receipt')?.remove();
+      const conv = state.convs.find(x => x.id === id);
+      const el = lastMine && box.querySelector(`[data-mid="${lastMine.id}"]`);
+      if (!conv || !el) return;
+      const sent = toDate(lastMine.created_at);
+      const others = conv.members.filter(m => m !== uid);
+      const readers = others.filter(m => { const t = toDate(conv.reads?.[m]); return t && sent && t >= sent; });
+      let text;
+      if (!conv.is_group) {
+        const t = readers.length ? toDate(conv.reads[others[0]]) : null;
+        text = t ? `${icon('checks', 14)} Prečítané ${t.toLocaleTimeString('sk-SK', { hour: '2-digit', minute: '2-digit' })}` : `${icon('check', 14)} Doručené`;
+      } else {
+        text = `${icon(readers.length ? 'checks' : 'check', 14)} Prečítali ${readers.length} z ${others.length}`;
+      }
+      el.insertAdjacentHTML('afterend', `<div class="receipt ${readers.length ? 'read' : ''}" title="${esc(readers.map(name).join(', ') || 'Zatiaľ nikto')}">${text}</div>`);
+    }
+    window.addEventListener('sh:convs', drawReceipt);
+    receiptCleanup?.();
+    receiptCleanup = () => window.removeEventListener('sh:convs', drawReceipt);
     const listen = keepScroll => {
       unsubMsgs?.();
       unsubMsgs = onSnapshot(query(collection(db, 'conversations', id, 'messages'), orderBy('created_at', 'desc'), limit(shown)), snap => {
         const fromBottom = box.scrollHeight - box.scrollTop;
+        lastMine = null;
         box.innerHTML = (snap.size >= shown ? '<button class="btn ghost sm older" id="older">Načítať staršie správy</button>' : '') +
           rows(snap).reverse().map(m => {
             const mine = m.sender_id === uid;
-            return `<div class="msg ${mine ? 'me' : ''}">${!mine && c.is_group ? `<div class="who">${esc(name(m.sender_id))}</div>` : ''}${esc(m.body)}<div class="time">${fmtDateTime(m.created_at)}</div></div>`;
+            if (mine) lastMine = m;
+            return `<div class="msg ${mine ? 'me' : ''}" data-mid="${m.id}">${!mine && c.is_group ? `<div class="who">${esc(name(m.sender_id))}</div>` : ''}${esc(m.body)}<div class="time">${fmtDateTime(m.created_at)}</div></div>`;
           }).join('');
+        drawReceipt();
         box.scrollTop = keepScroll ? box.scrollHeight - fromBottom : box.scrollHeight;
         keepScroll = false;
         box.querySelector('#older')?.addEventListener('click', () => { shown += PAGE; listen(true); });
@@ -89,11 +122,22 @@ export default async function (root) {
     body.onkeydown = e => {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
     };
+    const panel = form.querySelector('#emoji');
+    form.querySelector('#emoji-btn').onclick = () => panel.classList.toggle('hidden');
+    panel.onclick = e => {
+      const b = e.target.closest('[data-e]');
+      if (!b) return;
+      const at = body.selectionStart ?? body.value.length;
+      body.value = body.value.slice(0, at) + b.dataset.e + body.value.slice(body.selectionEnd ?? at);
+      body.focus();
+      body.selectionStart = body.selectionEnd = at + b.dataset.e.length;
+    };
     form.onsubmit = e => guard(async () => {
       e.preventDefault();
       const text = body.value.trim();
       if (!text) return;
       body.value = '';
+      panel.classList.add('hidden');
       const batch = writeBatch(db);
       batch.set(doc(collection(db, 'conversations', id, 'messages')), { sender_id: uid, body: text, created_at: serverTimestamp() });
       const others = Object.fromEntries(c.members.filter(m => m !== uid).map(m => [`unread.${m}`, increment(1)]));
@@ -193,6 +237,7 @@ export default async function (root) {
   return () => {
     window.removeEventListener('resize', fit);
     window.removeEventListener('sh:convs', drawList);
+    receiptCleanup?.();
     unsubMsgs?.();
   };
 }

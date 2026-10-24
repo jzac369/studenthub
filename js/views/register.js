@@ -1,4 +1,4 @@
-import { state, esc, icon, isAdmin, feature, avatar, loadPeople, downloadBlob } from '../lib.js';
+import { state, esc, icon, isAdmin, feature, avatar, loadPeople, downloadBlob, onlineIds } from '../lib.js';
 
 // Register: vľavo zoznam mien, vpravo detail vybraného študenta s fotkou a kontaktmi
 export default async function (root) {
@@ -15,6 +15,8 @@ export default async function (root) {
           <input id="q" placeholder="Hľadať meno, e-mail, telefón…" style="flex:2;min-width:160px">
           <select id="city" style="flex:1;min-width:130px"><option value="">Všetky mestá</option>${cities.map(c => `<option>${esc(c)}</option>`).join('')}</select>
         </div>
+        <div class="row" style="margin:-.25rem 0 .6rem"><span class="online-count" id="online-count"></span><span class="spacer"></span>
+          <label class="check" style="margin:0"><input type="checkbox" id="only-online"> Iba online</label></div>
         <div class="reg-list" id="list"></div>
       </div>
       <div class="card reg-detail" id="detail"></div>
@@ -26,9 +28,10 @@ export default async function (root) {
   function drawList() {
     const q = norm(root.querySelector('#q').value);
     const city = root.querySelector('#city').value;
-    shown = people.filter(p => (!city || p.city === city) && norm(`${p.full_name} ${p.email} ${p.phone}`).includes(q));
+    const onlyOnline = root.querySelector('#only-online').checked;
+    shown = people.filter(p => (!city || p.city === city) && (!onlyOnline || online.has(p.id)) && norm(`${p.full_name} ${p.email} ${p.phone}`).includes(q));
     root.querySelector('#list').innerHTML = shown.map(p => `
-      <button class="reg-item ${p.id === selected ? 'active' : ''}" data-id="${p.id}">${avatar(p, 32)}
+      <button class="reg-item ${p.id === selected ? 'active' : ''}" data-id="${p.id}"><span class="av-wrap">${avatar(p, 32)}${online.has(p.id) ? '<i class="online-dot" title="Online"></i>' : ''}</span>
         <span class="min0"><span class="ellipsis" style="display:block">${esc(p.full_name)}${p.id === state.user.uid ? ' <span class="muted small">(ty)</span>' : ''}</span>
         <span class="muted small">${esc(p.city || '')}</span></span></button>`).join('')
       || '<p class="muted">Nikto nevyhovuje hľadaniu.</p>';
@@ -45,9 +48,10 @@ export default async function (root) {
     const box = root.querySelector('#detail');
     if (!p) return void (box.innerHTML = '<p class="muted">Vyber študenta zo zoznamu.</p>');
     const canMessage = feature('messaging_enabled') && p.id !== state.user.uid;
-    box.innerHTML = `${avatar(p, 120)}
+    box.innerHTML = `<span class="av-wrap big">${avatar(p, 120)}${online.has(p.id) ? '<i class="online-dot"></i>' : ''}</span>
       <h2>${esc(p.full_name)}</h2>
       <div class="muted">${esc(p.city || '')}${p.role === 'admin' ? ' · <span class="badge pri">admin</span>' : ''}</div>
+      ${online.has(p.id) ? '<div class="online-label"><i class="online-dot static"></i> online</div>' : ''}
       <div class="reg-contacts">
         <a href="mailto:${esc(p.email)}">${icon('mail', 17)}${esc(p.email)}</a>
         ${p.phone ? `<a href="tel:${esc(p.phone.replace(/\s/g, ''))}">${icon('phone', 17)}${esc(p.phone)}</a>` : `<span class="muted">${icon('phone', 17)}telefón neuvedený</span>`}
@@ -60,6 +64,16 @@ export default async function (root) {
     });
   }
 
+  let online = new Set();
+  async function refreshOnline() {
+    try { online = await onlineIds(); } catch { online = new Set(); }
+    const n = people.filter(p => online.has(p.id)).length;
+    root.querySelector('#online-count').innerHTML = `<i class="online-dot static"></i> online: ${n}`;
+    drawList();
+    drawDetail();
+  }
+  const timer = setInterval(() => { if (document.visibilityState === 'visible') refreshOnline(); }, 60000);
+  root.querySelector('#only-online').onchange = drawList;
   root.querySelector('#q').oninput = drawList;
   root.querySelector('#city').onchange = drawList;
   root.querySelector('#csv')?.addEventListener('click', () => {
@@ -69,4 +83,6 @@ export default async function (root) {
   });
   drawList();
   drawDetail();
+  refreshOnline();
+  return () => clearInterval(timer);
 }

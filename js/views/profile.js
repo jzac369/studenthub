@@ -1,5 +1,5 @@
 import {
-  auth, db, state, doc, updateDoc, deleteField, bump, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
+  auth, db, state, doc, updateDoc, deleteField, bump, startPresence, goOffline, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
   avatar, resizePhoto, esc, guard, toast, icon,
 } from '../lib.js';
 
@@ -18,6 +18,7 @@ export default async function (root) {
       <label>E-mail</label><input value="${esc(p.email)}" disabled>
       <label>Telefón</label><input name="phone" type="tel" value="${esc(p.phone)}">
       <label>Mesto</label><input name="city" value="${esc(p.city)}">
+      <label class="check" style="margin-top:.9rem"><input type="checkbox" name="show_online" ${p.hide_online ? '' : 'checked'}> Zobrazovať ostatným, keď som online</label>
       <button class="btn" style="margin-top:1rem">${icon('check', 16)} Uložiť</button>
     </form>
     <form class="card" id="pw"><h2>${icon('lock')} Zmena hesla</h2>
@@ -52,11 +53,12 @@ export default async function (root) {
   root.querySelector('#info').onsubmit = e => guard(async () => {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
-    const row = { full_name: f.full_name.trim(), phone: f.phone.trim(), city: f.city.trim() };
+    const row = { full_name: f.full_name.trim(), phone: f.phone.trim(), city: f.city.trim(), hide_online: !f.show_online };
     await updateDoc(doc(db, 'users', p.id), row);
     await bump('users');
     Object.assign(p, row);
     Object.assign(state.people.get(p.id) || {}, row);
+    if (row.hide_online) await goOffline(); else startPresence();
     logActivity('Úprava profilu', 'meno, telefón alebo mesto');
     toast('Profil uložený');
   });

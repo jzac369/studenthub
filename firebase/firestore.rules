@@ -26,7 +26,7 @@ service cloud.firestore {
                     && request.resource.data.email == request.auth.token.email);
       // Študent smie meniť iba meno, telefón, mesto a profilovú fotku (malý JPEG, max. ~60 kB)
       allow update: if admin() || (request.auth.uid == uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['full_name', 'phone', 'city', 'photo'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['full_name', 'phone', 'city', 'photo', 'hide_online'])
                     && (!('photo' in request.resource.data)
                         || (request.resource.data.photo is string
                             && request.resource.data.photo.size() < 61440
@@ -49,6 +49,15 @@ service cloud.firestore {
                         && request.resource.data.storage_bytes - resource.data.storage_bytes >= -52428800
                         && request.resource.data.submissions_count - resource.data.submissions_count <= 1
                         && request.resource.data.submissions_count - resource.data.submissions_count >= -1);
+    }
+
+    // Online stav – každý zapisuje iba svoj čas aktivity, čítať môžu schválení používatelia
+    match /presence/{uid} {
+      allow read: if approved();
+      allow create, update: if approved() && request.auth.uid == uid
+                    && request.resource.data.keys().hasOnly(['last_seen'])
+                    && request.resource.data.last_seen == request.time;
+      allow delete: if signedIn() && request.auth.uid == uid;
     }
 
     // Log aktivít – každý prihlásený zapisuje iba záznamy o sebe, čítať a mazať ich môže iba admin

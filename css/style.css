@@ -289,6 +289,16 @@ img.avatar.photo { object-fit: cover; border-radius: 50%; display: block; flex-s
 .avatar.tone-4 { background: #eeedfe; color: #3c3489; } .avatar.tone-5 { background: #faece7; color: #712b13; }
 .photo-edit { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; }
 
+/* --- online stav --- */
+.av-wrap { position: relative; display: inline-block; flex-shrink: 0; line-height: 0; }
+.av-wrap.big { display: block; width: 120px; margin: .5rem auto 1rem; }
+.av-wrap.big .avatar { margin: 0; }
+.online-dot { position: absolute; right: 0; bottom: 0; width: 11px; height: 11px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 2px var(--surface); }
+.av-wrap.big .online-dot { width: 22px; height: 22px; right: 6px; bottom: 6px; box-shadow: 0 0 0 4px var(--surface); }
+.online-dot.static { position: static; display: inline-block; width: 9px; height: 9px; box-shadow: none; vertical-align: 0; margin-right: .2rem; }
+.online-count { font-size: .85rem; color: var(--muted); }
+.online-label { color: #16a34a; font-weight: 600; font-size: .9rem; margin-top: .25rem; }
+
 /* --- register: zoznam a detail --- */
 .reg { display: grid; grid-template-columns: minmax(260px, 1fr) minmax(0, 1.3fr); gap: 1.25rem; align-items: start; }
 .reg-list { max-height: calc(100vh - 15rem); overflow-y: auto; margin: 0 -.4rem; padding: 0 .4rem; }
@@ -336,3 +346,15 @@ details.assign summary::-webkit-details-marker { display: none; }
 .dated-day { display: flex; flex-direction: column; gap: .3rem; align-items: flex-start; padding-top: .3rem; }
 .dated-items .lesson:last-child { margin-bottom: 0; }
 @media (max-width: 600px) { .dated { grid-template-columns: 1fr; gap: .3rem; } .dated-day { flex-direction: row; align-items: center; } }
+
+/* --- emotikony a potvrdenie o prečítaní --- */
+.chat-form { position: relative; align-items: flex-end; }
+.emoji-btn { color: var(--muted); align-self: center; }
+.emoji-btn:hover { color: var(--primary); }
+.emoji-panel { position: absolute; bottom: calc(100% + 6px); left: .75rem; z-index: 5; width: min(340px, calc(100% - 1.5rem));
+  display: grid; grid-template-columns: repeat(8, 1fr); gap: 2px; padding: .5rem; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px; box-shadow: var(--shadow); }
+.emoji-panel .emoji { font-size: 1.35rem; line-height: 1; padding: .35rem 0; border: 0; background: none; border-radius: 8px; cursor: pointer; }
+.emoji-panel .emoji:hover { background: var(--surface-2); }
+.receipt { align-self: flex-end; font-size: .72rem; color: var(--muted); display: inline-flex; align-items: center; gap: .25rem; margin: -.1rem .2rem .2rem 0; }
+.receipt.read { color: var(--primary); }

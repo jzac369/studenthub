@@ -1,6 +1,6 @@
 import {
   auth, db, state, configured, $, $$, esc, icon, isAdmin, feature, initials, toggleTheme, loadPeople, loadSettings,
-  watchVersions, clearCache, avatar, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
+  watchVersions, clearCache, startPresence, stopPresence, avatar, logActivity, logSessionStart, logout, quotaUsage, WARN_AT, onAuthStateChanged, signOut, doc, getDoc, setDoc, serverTimestamp, query, col, where, onSnapshot, rows, isUnread, unreadCount, errMsg,
 } from './lib.js';
 import { logo } from './icons.js';
 import { renderAuth, renderPending, signupDone } from './auth.js';
@@ -64,6 +64,7 @@ async function handleSession(user) {
     await Promise.all([loadSettings(), loadPeople()]);
     renderShell();
     shellReady = true;
+    startPresence();
   } catch (e) {
     console.error(e);
     app.innerHTML = `<div class="auth"><div class="card"><h2>Nepodarilo sa načítať portál</h2><p class="err-box">${esc(errMsg(e))}</p>
@@ -73,6 +74,7 @@ async function handleSession(user) {
 }
 
 function teardown() {
+  stopPresence();
   cleanup?.();
   cleanup = null;
   unsubConvs?.();

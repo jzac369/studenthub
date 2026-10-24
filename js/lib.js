@@ -241,7 +241,39 @@ export function logSessionStart() {
   } catch {}
 }
 
+// ---------- Online stav ----------
+// Kým je portál otvorený a viditeľný, raz za 2 minúty zapíšeme čas aktivity do presence/{uid}.
+// Za online považujeme toho, kto bol aktívny za posledné 3 minúty.
+const BEAT_MS = 120000;
+export const ONLINE_MS = 180000;
+let beatTimer = null;
+const beat = () => setDoc(doc(db, 'presence', auth.currentUser.uid), { last_seen: serverTimestamp() }).catch(() => {});
+const onVisibility = () => { if (document.visibilityState === 'visible') beat(); };
+
+export function startPresence() {
+  stopPresence();
+  if (!auth.currentUser || state.profile?.hide_online) return;
+  beat();
+  beatTimer = setInterval(() => { if (document.visibilityState === 'visible') beat(); }, BEAT_MS);
+  document.addEventListener('visibilitychange', onVisibility);
+}
+export function stopPresence() {
+  clearInterval(beatTimer);
+  beatTimer = null;
+  document.removeEventListener('visibilitychange', onVisibility);
+}
+export async function goOffline() {
+  stopPresence();
+  if (auth.currentUser) await deleteDoc(doc(db, 'presence', auth.currentUser.uid)).catch(() => {});
+}
+// Načíta iba práve aktívnych používateľov – počet čítaní = počet ľudí online
+export async function onlineIds() {
+  const rows = await list(query(col('presence'), where('last_seen', '>', new Date(Date.now() - ONLINE_MS))));
+  return new Set(rows.map(r => r.id));
+}
+
 export async function logout() {
+  await goOffline();
   await logActivity('Odhlásenie');
   try { sessionStorage.removeItem(`sh-session:${auth.currentUser?.uid}`); } catch {}
   await signOut(auth);
