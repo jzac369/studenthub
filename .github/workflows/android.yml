@@ -1,0 +1,33 @@
+# Zostaví podpísanú Android aplikáciu StudentHUB (.aab pre Google Play a .apk na testovanie)
+name: Android
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Podpisový kľúč
+        run: echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > "$RUNNER_TEMP/upload.p12"
+      - name: Zostavenie
+        env:
+          KEYSTORE_FILE: ${{ runner.temp }}/upload.p12
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: gradle -p android bundleRelease assembleRelease -PversionCode=${{ github.run_number }} --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: studenthub-android-${{ github.run_number }}
+          path: |
+            android/app/build/outputs/bundle/release/app-release.aab
+            android/app/build/outputs/apk/release/app-release.apk

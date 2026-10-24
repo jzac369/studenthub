@@ -1,0 +1,49 @@
+// StudentHUB – Android aplikácia (Trusted Web Activity), ktorá zobrazí portál na celej obrazovke
+plugins {
+    id 'com.android.application'
+}
+
+def buildNumber = (project.findProperty('versionCode') ?: '1') as String
+
+android {
+    namespace 'io.github.jzac369.studenthub'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'io.github.jzac369.studenthub'
+        minSdk 23
+        targetSdk 36
+        // Číslo verzie dodáva GitHub Actions (číslo behu), lokálne 1
+        versionCode buildNumber as int
+        versionName "1.0.${buildNumber}"
+    }
+
+    signingConfigs {
+        release {
+            def ks = System.getenv('KEYSTORE_FILE')
+            if (ks) {
+                storeFile file(ks)
+                storeType 'pkcs12'
+                storePassword System.getenv('KEYSTORE_PASSWORD')
+                keyAlias 'upload'
+                keyPassword System.getenv('KEYSTORE_PASSWORD')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

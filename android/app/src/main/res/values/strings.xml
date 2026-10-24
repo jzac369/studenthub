@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">StudentHUB</string>
+    <string name="launch_url">https://jzac369.github.io/studenthub/</string>
+    <string name="file_provider_authority">io.github.jzac369.studenthub.fileprovider</string>
+    <string name="asset_statements" translatable="false">[{ \"relation\": [\"delegate_permission/common.handle_all_urls\"], \"target\": { \"namespace\": \"web\", \"site\": \"https://jzac369.github.io\" } }]</string>
+</resources>
