@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// StudentHUB – pravidlá pre súbory (Cloud Storage for Firebase).
+// Firebase Console → Storage → Rules → vlož celý súbor → Publish.
+// Pri prvom uložení Firebase požiada o povolenie čítať Firestore – potvrď ho.
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    function profile() {
+      return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data;
+    }
+    function approved() { return request.auth != null && profile().approved == true; }
+    function admin() { return approved() && profile().role == 'admin'; }
+
+    // Každý študent má vlastný priečinok submissions/<uid>/; cudzie súbory vidí iba admin
+    match /submissions/{uid}/{file} {
+      allow read: if approved() && (request.auth.uid == uid || admin());
+      allow create: if approved() && request.auth.uid == uid
+                    && request.resource.size <= 50 * 1024 * 1024;
+      allow delete: if approved() && (request.auth.uid == uid || admin());
+    }
+
+    // Všetko ostatné je zakázané
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}
