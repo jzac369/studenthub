@@ -359,3 +359,17 @@ details.assign summary::-webkit-details-marker { display: none; }
 .receipt { align-self: flex-end; font-size: .72rem; color: var(--muted); display: inline-flex; align-items: center; gap: .25rem; margin: -.1rem .2rem .2rem 0; }
 .receipt.read { color: var(--primary); }
 .dl-count { white-space: nowrap; display: inline-flex; align-items: center; gap: .15rem; }
+
+/* --- Všetky práce: matica študentov a predmetov --- */
+.matrix th, .matrix td { text-align: center; white-space: nowrap; }
+.matrix th:first-child, .matrix td:first-child { text-align: left; }
+.matrix .sticky-col { position: sticky; left: 0; background: var(--surface); z-index: 1; min-width: 200px; max-width: 260px; }
+.mx-head { font-size: .8rem; text-transform: none; letter-spacing: 0; color: var(--text); white-space: normal; min-width: 110px; max-width: 160px; margin: 0 auto; }
+.mx-sub { display: flex; align-items: center; justify-content: center; gap: .2rem; margin-top: .3rem; }
+.mx-student { display: flex; align-items: center; gap: .5rem; min-width: 0; }
+.mx-cell { padding: .3rem; }
+.mx-ok { width: 30px; height: 30px; border-radius: 50%; border: 0; cursor: pointer; display: inline-grid; place-items: center;
+  background: color-mix(in srgb, var(--success) 16%, transparent); color: var(--success); }
+.mx-ok:hover { background: var(--success); color: #fff; }
+.mx-ok.sent { box-shadow: 0 0 0 2px var(--success) inset; }
+.mx-miss { color: var(--muted); opacity: .6; }

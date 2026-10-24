@@ -1,18 +1,25 @@
 import {
   db, state, col, doc, query, where, list, cached, addDoc, deleteDoc, serverTimestamp, toDate, byNewest,
-  uploadFile, downloadFile, removeFile, adjustStats, logActivity, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon,
+  uploadFile, downloadFile, removeFile, adjustStats, logActivity, isAdmin, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon,
 } from '../lib.js';
 
 export const ALLOWED = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg'];
 
-export default async function (root) {
+export default async function (root, [tab] = []) {
+  // Admini majú navyše kartu Všetky práce (prehľad študentov × predmetov)
+  const tabs = isAdmin() ? `<div class="tabs"><a href="#/prace" class="${tab === 'vsetky' ? '' : 'active'}">${icon('upload', 15)} Moje práce</a>
+    <a href="#/prace/vsetky" class="${tab === 'vsetky' ? 'active' : ''}">${icon('users', 15)} Všetky práce</a></div>` : '';
+  if (isAdmin() && tab === 'vsetky') {
+    root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} Práce</h1></div>${tabs}<div id="all">Načítavam…</div>`;
+    return (await import('./allworks.js')).default(root.querySelector('#all'));
+  }
   const uid = state.user.uid;
   const maxMb = Number(state.settings.max_file_mb) || 30;
   const [subjects, assignments] = await Promise.all([cached('subjects'), cached('assignments')]);
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   assignments.sort((a, b) => (a.due_date || '9').localeCompare(b.due_date || '9'));
 
-  root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} Moje práce</h1></div>
+  root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} ${isAdmin() ? 'Práce' : 'Moje práce'}</h1></div>${tabs}
   ${subjects.length ? '' : '<div class="card"><p class="muted" style="margin:0">Administrátor ešte nepridal predmety, preto zatiaľ nie je možné odovzdať prácu.</p></div>'}
   <form class="card ${subjects.length ? '' : 'hidden'}" id="up"><h2>Odovzdať novú prácu</h2>
     <div class="grid" style="gap:0 1rem">
