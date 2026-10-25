@@ -17,7 +17,8 @@ export {
   collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc, query, where, orderBy, limit,
   onSnapshot, serverTimestamp, writeBatch, increment, deleteField,
 };
-export { icon } from './icons.js';
+import { icon } from './icons.js';
+export { icon };
 
 export const configured = !firebaseConfig.apiKey.startsWith('YOUR');
 export const app = initializeApp(firebaseConfig);
@@ -101,6 +102,34 @@ export function toast(msg, type = 'ok') {
   t.textContent = msg;
   box.appendChild(t);
   setTimeout(() => t.remove(), type === 'err' ? 6000 : 3000);
+}
+
+// Ku každému políčku s heslom pridá tlačidlo „oko“ na zobrazenie a skrytie hesla
+export function passwordToggles(root) {
+  root.querySelectorAll('input[type=password]').forEach(input => {
+    if (input.parentElement.classList.contains('pw-wrap')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'pw-wrap';
+    input.replaceWith(wrap);
+    wrap.append(input);
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'pw-eye';
+    const draw = shown => {
+      btn.innerHTML = icon(shown ? 'eyeOff' : 'eye', 18);
+      btn.title = shown ? 'Skryť heslo' : 'Zobraziť heslo';
+      btn.setAttribute('aria-label', btn.title);
+      btn.setAttribute('aria-pressed', String(shown));
+    };
+    btn.onclick = () => {
+      const shown = input.type === 'password';
+      input.type = shown ? 'text' : 'password';
+      draw(shown);
+      input.focus();
+    };
+    draw(false);
+    wrap.append(btn);
+  });
 }
 
 export function modal(title, bodyHtml) {

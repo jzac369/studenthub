@@ -1,6 +1,6 @@
 import {
   auth, db, doc, setDoc, serverTimestamp, setPersistence, browserLocalPersistence, browserSessionPersistence, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  sendPasswordResetEmail, signOut, logout, esc, toast, guard, icon, $,
+  sendPasswordResetEmail, signOut, logout, esc, toast, guard, icon, $, passwordToggles,
 } from './lib.js';
 import { logo } from './icons.js';
 
@@ -31,6 +31,7 @@ export function renderAuth(root) {
     </form>
   </div><p class="powered">Powered by <b>DigiStart ADV</b> · <a href="privacy.html">Ochrana súkromia</a></p></div>`;
 
+  passwordToggles(root);
   root.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => {
     root.querySelectorAll('[data-tab]').forEach(x => x.classList.toggle('active', x === b));
     $('#login', root).classList.toggle('hidden', b.dataset.tab !== 'login');

@@ -1,6 +1,6 @@
 import {
   auth, db, state, doc, updateDoc, deleteField, bump, startPresence, goOffline, soundEnabled, setSoundEnabled, playChime, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
-  avatar, resizePhoto, esc, guard, toast, icon,
+  avatar, resizePhoto, esc, guard, toast, icon, passwordToggles,
   touched,
 } from '../lib.js';
 
@@ -30,6 +30,7 @@ export default async function (root) {
       <button class="btn" style="margin-top:1rem">Zmeniť heslo</button>
     </form>
   </div>`;
+  passwordToggles(root);
 
   async function savePhoto(photo) {
     await updateDoc(doc(db, 'users', p.id), { photo: photo ?? deleteField(), ...touched() });

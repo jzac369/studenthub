@@ -421,3 +421,11 @@ details.assign summary::-webkit-details-marker { display: none; }
 .mx-btn.pri:hover { background: var(--primary); color: #fff; }
 .mx-btn.linked::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--success); border: 2px solid var(--surface); }
 .mx-actions .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
+
+/* --- zobrazenie hesla --- */
+.pw-wrap { position: relative; }
+.pw-wrap input { padding-right: 2.6rem; }
+.pw-eye { position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); border: 0; background: none; color: var(--muted);
+  cursor: pointer; padding: .35rem; border-radius: 8px; display: grid; place-items: center; }
+.pw-eye:hover, .pw-eye[aria-pressed="true"] { color: var(--primary); }
+.pw-eye:focus-visible { outline: 2px solid var(--primary); }
