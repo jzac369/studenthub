@@ -34,9 +34,9 @@ export default async function renderAllWorks(el) {
       <div class="table-wrap"><table class="matrix"><thead><tr><th class="sticky-col">Študent</th>${subjects.map(s => {
         const n = students.filter(st => done(st, s)).length;
         return `<th title="${esc(s.name)}${s.lecturer_name ? ' – ' + esc(s.lecturer_name) : ''}"><div class="mx-head"><span>${esc(s.name)}</span></div>
-          <div class="mx-sub"><span class="badge ${n === students.length && n ? 'ok' : n ? 'warn' : ''}">${n}/${students.length}</span>
-          <span class="mx-actions ${n ? '' : 'off'}"><button class="icon-btn" data-zip="${s.id}" title="Stiahnuť všetky práce z predmetu ako ZIP" ${n ? '' : 'tabindex="-1"'}>${icon('download', 15)}</button>
-            <button class="icon-btn" data-share="${s.id}" title="Vytvoriť odkaz pre lektora na stiahnutie všetkých prác" ${n ? '' : 'tabindex="-1"'}>${icon('link', 15)}</button></span></div></th>`;
+          <div class="mx-sub"><span class="badge ${n === students.length && n ? 'ok' : n ? 'warn' : ''}">${n}/${students.length}</span></div>
+          <div class="mx-actions ${n ? '' : 'off'}"><button class="icon-btn" data-zip="${s.id}" title="Stiahnuť všetky práce z predmetu ako ZIP" ${n ? '' : 'tabindex="-1"'}>${icon('download', 15)}</button>
+            <button class="icon-btn" data-share="${s.id}" title="Vytvoriť odkaz pre lektora na stiahnutie všetkých prác" ${n ? '' : 'tabindex="-1"'}>${icon('link', 15)}</button></div></th>`;
       }).join('')}</tr></thead><tbody id="rows"></tbody></table></div>
       ${subjects.length ? '' : '<p class="muted">Zatiaľ nie sú zadané žiadne predmety.</p>'}
       <div class="progress hidden" id="prog"><div></div></div>

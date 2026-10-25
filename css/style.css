@@ -406,3 +406,8 @@ details.assign summary::-webkit-details-marker { display: none; }
 .mx-sub { height: 30px; }
 .mx-actions { display: inline-flex; gap: .1rem; }
 .mx-actions.off { visibility: hidden; }
+
+/* počet v strede stĺpca, ikony v samostatnom riadku pod ním (rovnaká výška vo všetkých stĺpcoch) */
+.mx-sub { height: auto; margin-top: .35rem; }
+.mx-actions { display: flex; justify-content: center; gap: .15rem; height: 28px; margin-top: .15rem; }
+.mx-actions .icon-btn { padding: .2rem; }
