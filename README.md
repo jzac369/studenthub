@@ -65,8 +65,8 @@ Firebase Storage pri nových projektoch vyžaduje plán **Blaze** (treba pridať
 1. Na GitHube vytvor repozitár `studenthub`. Bezplatné GitHub Pages vyžadujú verejný repozitár: verejný je však len kód, nie dáta študentov.
 2. Nahraj doň všetky súbory z tohto priečinka.
 3. **Settings → Pages → Source: Deploy from a branch → `main` / `(root)`** → Save.
-4. O minútu je portál na `https://TVOJE-MENO.github.io/studenthub/`.
-5. Vo Firebase: **Authentication → Settings → Authorized domains → Add domain** → `TVOJE-MENO.github.io`.
+4. O minútu je portál na `https://TVOJE-MENO.github.io/studenthub/` (StudentHUB beží na vlastnej doméne `https://studenthub.digistart.sk` – súbor `CNAME`).
+5. Vo Firebase: **Authentication → Settings → Authorized domains → Add domain** → `TVOJE-MENO.github.io` (a vlastnú doménu, napr. `studenthub.digistart.sk`).
 
 ## 3. Povolenie sťahovania súborov (CORS)
 

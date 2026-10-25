@@ -2,7 +2,7 @@
 # StudentHUB – jednorazové nastavenie v Google Cloud Shell:
 #   1. CORS na bucket (sťahovanie prác z GitHub Pages)
 #   2. nasadenie Cloud Function, ktorá meria spotrebu Firebase
-# Spustenie v Cloud Shell:  curl -sLo s.sh jzac369.github.io/studenthub/tools/setup.sh && bash s.sh
+# Spustenie v Cloud Shell:  curl -sLo s.sh https://raw.githubusercontent.com/jzac369/studenthub/main/tools/setup.sh && bash s.sh
 set -euo pipefail
 
 PROJECT=studenthub-bc04b

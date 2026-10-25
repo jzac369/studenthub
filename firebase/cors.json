@@ -1,6 +1,6 @@
 [
   {
-    "origin": ["https://jzac369.github.io"],
+    "origin": ["https://studenthub.digistart.sk", "https://www.studenthub.digistart.sk", "https://jzac369.github.io"],
     "method": ["GET"],
     "maxAgeSeconds": 3600
   }
