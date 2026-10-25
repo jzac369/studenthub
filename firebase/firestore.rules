@@ -154,6 +154,12 @@ service cloud.firestore {
       allow delete: if admin() || (approved() && resource.data.student_id == request.auth.uid);
     }
 
+    // Odkazy pre lektorov na stiahnutie prác – vytvára ich Cloud Function, admin ich vidí a ruší
+    match /shares/{id} {
+      allow read: if admin();
+      allow update: if admin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['revoked']);
+    }
+
     // ---------- Správy ----------
     // Admin NEvidí cudzie súkromné správy – iba členovia konverzácie.
     match /conversations/{cid} {
