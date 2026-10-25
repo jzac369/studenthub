@@ -12,6 +12,7 @@ echo "== Projekt $PROJECT"
 gcloud config set project "$PROJECT" --quiet
 
 echo "== Sťahujem StudentHUB z GitHubu"
+cd ~
 rm -rf ~/studenthub
 git clone -q https://github.com/jzac369/studenthub.git ~/studenthub
 cd ~/studenthub
