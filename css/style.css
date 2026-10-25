@@ -384,3 +384,11 @@ details.assign summary::-webkit-details-marker { display: none; }
 .feedback { white-space: pre-wrap; background: var(--surface-2); border-radius: 10px; padding: .75rem 1rem; }
 .link-btn { background: none; border: 0; padding: 0; color: var(--primary); cursor: pointer; font: inherit; display: inline-flex; align-items: center; gap: .25rem; margin-top: .3rem; }
 .link-btn:hover { text-decoration: underline; }
+
+/* --- log: zbalené relácie --- */
+.log-session { cursor: pointer; background: var(--surface-2); }
+.log-session:hover { background: var(--primary-soft); }
+.log-session .chev { display: inline-flex; transition: transform .15s; color: var(--muted); vertical-align: -2px; }
+.log-session.open .chev { transform: rotate(90deg); color: var(--primary); }
+.log-child td { padding-top: .35rem; padding-bottom: .35rem; font-size: .88rem; }
+.log-child td:first-child { padding-left: 1.6rem; }
