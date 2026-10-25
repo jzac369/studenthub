@@ -12,6 +12,8 @@ export default async function renderAllWorks(el) {
   if (!isAdmin()) return renderStudentView(el);
   const [users, subjects, subs, marks, shares] = await Promise.all([cached('users'), cached('subjects'), list(col('submissions')), list(col('submitted')), list(col('shares')).catch(() => [])]);
   syncMarks(subs, marks);
+  // Predmety s aktívnym odkazom pre lektora – tlačidlo Odkaz dostane zelenú bodku
+  const linked = new Set(shares.filter(x => !x.revoked && toDate(x.expires_at) > Date.now()).map(x => x.subject_id));
   const students = users.filter(u => u.approved && isStudent(u)).sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   subs.sort(byNewest);
@@ -35,8 +37,9 @@ export default async function renderAllWorks(el) {
         const n = students.filter(st => done(st, s)).length;
         return `<th title="${esc(s.name)}${s.lecturer_name ? ' – ' + esc(s.lecturer_name) : ''}"><div class="mx-head"><span>${esc(s.name)}</span></div>
           <div class="mx-sub"><span class="badge ${n === students.length && n ? 'ok' : n ? 'warn' : ''}">${n}/${students.length}</span></div>
-          <div class="mx-actions ${n ? '' : 'off'}"><button class="icon-btn" data-zip="${s.id}" title="Stiahnuť všetky práce z predmetu ako ZIP" ${n ? '' : 'tabindex="-1"'}>${icon('download', 15)}</button>
-            <button class="icon-btn" data-share="${s.id}" title="Vytvoriť odkaz pre lektora na stiahnutie všetkých prác" ${n ? '' : 'tabindex="-1"'}>${icon('link', 15)}</button></div></th>`;
+          <div class="mx-actions">${n ? `<button class="mx-btn" data-zip="${s.id}" title="Stiahnuť všetky práce z predmetu ako ZIP">${icon('download', 14)} ZIP</button>
+            <button class="mx-btn pri ${linked.has(s.id) ? 'linked' : ''}" data-share="${s.id}" title="${linked.has(s.id) ? 'Odkaz pre lektora je aktívny – kliknutím vytvoríš nový' : 'Vytvoriť odkaz pre lektora na stiahnutie všetkých prác'}">${icon('link', 14)} Odkaz</button>`
+            : '<span class="muted small">zatiaľ nič</span>'}</div></th>`;
       }).join('')}</tr></thead><tbody id="rows"></tbody></table></div>
       ${subjects.length ? '' : '<p class="muted">Zatiaľ nie sú zadané žiadne predmety.</p>'}
       <div class="progress hidden" id="prog"><div></div></div>

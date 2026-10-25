@@ -411,3 +411,13 @@ details.assign summary::-webkit-details-marker { display: none; }
 .mx-sub { height: auto; margin-top: .35rem; }
 .mx-actions { display: flex; justify-content: center; gap: .15rem; height: 28px; margin-top: .15rem; }
 .mx-actions .icon-btn { padding: .2rem; }
+
+/* Všetky práce: popísané tlačidlá ZIP a Odkaz v hlavičke predmetu */
+.mx-actions { align-items: center; height: 32px; margin-top: .35rem; gap: .3rem; }
+.mx-btn { display: inline-flex; align-items: center; gap: .25rem; font: inherit; font-size: .75rem; font-weight: 700; padding: .28rem .55rem;
+  border-radius: 8px; border: 1px solid var(--border); background: var(--surface); color: var(--text); cursor: pointer; position: relative; }
+.mx-btn:hover { border-color: var(--primary); color: var(--primary); }
+.mx-btn.pri { background: var(--primary-soft); border-color: transparent; color: var(--primary); }
+.mx-btn.pri:hover { background: var(--primary); color: #fff; }
+.mx-btn.linked::after { content: ''; position: absolute; top: -3px; right: -3px; width: 9px; height: 9px; border-radius: 50%; background: var(--success); border: 2px solid var(--surface); }
+.mx-actions .muted { text-transform: none; letter-spacing: 0; font-weight: 400; }
