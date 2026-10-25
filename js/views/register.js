@@ -50,7 +50,7 @@ export default async function (root) {
     const canMessage = feature('messaging_enabled') && p.id !== state.user.uid;
     box.innerHTML = `<span class="av-wrap big">${avatar(p, 120)}${online.has(p.id) ? '<i class="online-dot"></i>' : ''}</span>
       <h2>${esc(p.full_name)}</h2>
-      <div class="muted">${esc(p.city || '')}${p.role === 'admin' ? ' · <span class="badge pri">admin</span>' : p.role === 'lecturer' ? ' · <span class="badge ok">lektor</span>' : ''}</div>
+      <div class="muted">${esc(p.city || '')}${p.role === 'admin' ? ` · <span class="badge pri">admin</span>${p.also_student ? ' <span class="badge">študent</span>' : ''}` : p.role === 'lecturer' ? ' · <span class="badge ok">lektor</span>' : ''}</div>
       ${online.has(p.id) ? '<div class="online-label"><i class="online-dot static"></i> online</div>' : ''}
       <div class="reg-contacts">
         <a href="mailto:${esc(p.email)}">${icon('mail', 17)}${esc(p.email)}</a>

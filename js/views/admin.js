@@ -201,13 +201,14 @@ async function renderUsers(el) {
     <tbody>${users.map(u => `<tr data-n="${esc(`${u.full_name} ${u.email}`.toLowerCase())}">
       <td><strong>${esc(u.full_name || '—')}</strong><div class="muted small">od ${fmtDate(u.created_at)}</div></td>
       <td>${esc(u.email)}<div class="muted small">${esc(u.phone)}</div></td><td>${esc(u.city)}</td>
-      <td>${u.role === 'admin' ? '<span class="badge pri">admin</span>' : u.role === 'lecturer' ? '<span class="badge ok">lektor</span>' : 'študent'}${u.demo ? ' <span class="badge">ukážka</span>' : ''}
+      <td>${u.role === 'admin' ? `<span class="badge pri">admin</span>${u.also_student ? ' + študent' : ''}` : u.role === 'lecturer' ? '<span class="badge ok">lektor</span>' : 'študent'}${u.demo ? ' <span class="badge">ukážka</span>' : ''}
         ${u.role === 'lecturer' ? `<div class="muted small">${(u.subjects || []).map(subjName).map(esc).join(', ') || 'bez predmetov'}</div>` : ''}</td>
       <td>${u.approved ? '<span class="badge ok">aktívny</span>' : '<span class="badge warn">čaká</span>'}</td>
       <td class="nowrap-cell">${u.id === state.user.uid ? '<span class="muted small">to si ty</span>' : `
         <button class="btn sm ${u.approved ? 'ghost' : ''}" data-approve="${u.id}" data-v="${!u.approved}">${u.approved ? 'Deaktivovať' : `${icon('check', 14)} Schváliť`}</button>
         <select class="role-select" data-role="${u.id}" title="Rola">${Object.entries(ROLE_LABEL).map(([k, l]) => `<option value="${k}" ${(u.role || 'student') === k ? 'selected' : ''}>${l}</option>`).join('')}</select>
-        ${u.role === 'lecturer' ? `<button class="btn sm ghost" data-subj="${u.id}">${icon('book', 14)} Predmety</button>` : ''}`}</td>
+        ${u.role === 'lecturer' ? `<button class="btn sm ghost" data-subj="${u.id}">${icon('book', 14)} Predmety</button>` : ''}`}
+        ${u.role === 'admin' ? `<label class="check small" title="Admin, ktorý zároveň študuje – počíta sa medzi študentov v prehľadoch prác a štatistikách"><input type="checkbox" data-also="${u.id}" ${u.also_student ? 'checked' : ''}> aj študent</label>` : ''}</td>
     </tr>`).join('')}</tbody></table></div></div>`;
 
   el.querySelector('#q').oninput = e => {
@@ -228,6 +229,13 @@ async function renderUsers(el) {
     logActivity('Zmena roly', `${who.full_name} (${who.email}): ${ROLE_LABEL[who.role || 'student']} → ${ROLE_LABEL[s.value]}`);
     await bump('users');
     if (s.value === 'lecturer') return pickSubjects({ ...who, role: 'lecturer' }, subjects, () => renderUsers(el));
+    renderUsers(el);
+  }));
+  el.querySelectorAll('[data-also]').forEach(c => c.onchange = () => guard(async () => {
+    const who = users.find(x => x.id === c.dataset.also);
+    await updateDoc(doc(db, 'users', who.id), { also_student: c.checked });
+    logActivity(c.checked ? 'Admin označený aj ako študent' : 'Admin už nie je študent', `${who.full_name} (${who.email})`);
+    await bump('users');
     renderUsers(el);
   }));
   el.querySelectorAll('[data-subj]').forEach(b => b.onclick = () => pickSubjects(users.find(x => x.id === b.dataset.subj), subjects, () => renderUsers(el)));
