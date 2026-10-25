@@ -1,7 +1,7 @@
 import {
   app, db, state, col, doc, query, where, orderBy, limit, list, cached, bump, getDoc, setDoc, addDoc, updateDoc, deleteDoc, writeBatch, serverTimestamp,
   increment, toDate, byNewest, createUserWithEmailAndPassword, signOut, getHelperAuth, downloadFile, removeFile, loadSettings,
-  DEFAULT_SETTINGS, isStudent, ROLE_LABEL, quotaUsage, QUOTA, WARN_AT, PROJECT_ID, logActivity,
+  DEFAULT_SETTINGS, touched, isStudent, ROLE_LABEL, quotaUsage, QUOTA, WARN_AT, PROJECT_ID, logActivity,
   esc, guard, toast, modal, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon,
 } from '../lib.js';
 import { getFunctions, httpsCallable } from 'https://www.gstatic.com/firebasejs/11.0.2/firebase-functions.js';
@@ -216,16 +216,16 @@ async function renderUsers(el) {
     el.querySelectorAll('tbody tr').forEach(tr => tr.classList.toggle('hidden', !tr.dataset.n.includes(q)));
   };
   el.querySelectorAll('[data-approve]').forEach(b => b.onclick = () => guard(async () => {
-    await updateDoc(doc(db, 'users', b.dataset.approve), { approved: b.dataset.v === 'true' });
+    await updateDoc(doc(db, 'users', b.dataset.approve), { approved: b.dataset.v === 'true', ...touched() });
     const who = users.find(x => x.id === b.dataset.approve);
     logActivity(b.dataset.v === 'true' ? 'Schválenie používateľa' : 'Deaktivácia používateľa', `${who?.full_name} (${who?.email})`);
-    await bump('users');
+    await bump('users', b.dataset.v !== 'true');
     renderUsers(el);
   }));
   el.querySelectorAll('[data-role]').forEach(s => s.onchange = () => guard(async () => {
     const who = users.find(x => x.id === s.dataset.role);
     if (s.value === 'admin' && !confirm('Tento používateľ získa plný prístup k administrácii. Pokračovať?')) return void (s.value = who.role || 'student');
-    await updateDoc(doc(db, 'users', who.id), { role: s.value });
+    await updateDoc(doc(db, 'users', who.id), { role: s.value, ...touched() });
     logActivity('Zmena roly', `${who.full_name} (${who.email}): ${ROLE_LABEL[who.role || 'student']} → ${ROLE_LABEL[s.value]}`);
     await bump('users');
     if (s.value === 'lecturer') return pickSubjects({ ...who, role: 'lecturer' }, subjects, () => renderUsers(el));
@@ -233,7 +233,7 @@ async function renderUsers(el) {
   }));
   el.querySelectorAll('[data-also]').forEach(c => c.onchange = () => guard(async () => {
     const who = users.find(x => x.id === c.dataset.also);
-    await updateDoc(doc(db, 'users', who.id), { also_student: c.checked });
+    await updateDoc(doc(db, 'users', who.id), { also_student: c.checked, ...touched() });
     logActivity(c.checked ? 'Admin označený aj ako študent' : 'Admin už nie je študent', `${who.full_name} (${who.email})`);
     await bump('users');
     renderUsers(el);
@@ -260,7 +260,7 @@ function pickSubjects(u, subjects, done) {
   m.el.querySelector('form').onsubmit = e => guard(async () => {
     e.preventDefault();
     const picked = new FormData(e.target).getAll('subj');
-    await updateDoc(doc(db, 'users', u.id), { subjects: picked });
+    await updateDoc(doc(db, 'users', u.id), { subjects: picked, ...touched() });
     logActivity('Predmety lektora', `${u.full_name}: ${picked.map(id => subjects.find(s => s.id === id)?.name).join(', ') || '—'}`);
     await bump('users');
     m.close();
@@ -287,7 +287,7 @@ function addStudent(done, lecturerSubjects = null) {
     await signOut(helper);
     await setDoc(doc(db, 'users', cred.user.uid), {
       full_name: f.full_name.trim(), email: cred.user.email, phone: f.phone.trim(), city: f.city.trim(),
-      role: lect ? 'lecturer' : 'student', approved: true, created_at: serverTimestamp(), ...(lect ? { subjects: subjectIds } : {}),
+      role: lect ? 'lecturer' : 'student', approved: true, created_at: serverTimestamp(), ...touched(), ...(lect ? { subjects: subjectIds } : {}),
     });
     logActivity(lect ? 'Pridanie lektora' : 'Pridanie študenta', `${f.full_name.trim()} (${cred.user.email})`);
     await bump('users');

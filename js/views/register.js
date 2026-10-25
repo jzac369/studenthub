@@ -72,7 +72,8 @@ export default async function (root) {
     drawList();
     drawDetail();
   }
-  const timer = setInterval(() => { if (document.visibilityState === 'visible') refreshOnline(); }, 60000);
+  // Online stav sa mení najviac raz za 5 minút, stačí ho obnoviť každé 2 minúty (iba na viditeľnej karte)
+  const timer = setInterval(() => { if (document.visibilityState === 'visible') refreshOnline(); }, 120000);
   root.querySelector('#only-online').onchange = drawList;
   root.querySelector('#q').oninput = drawList;
   root.querySelector('#city').onchange = drawList;

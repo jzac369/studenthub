@@ -204,19 +204,41 @@ export function watchVersions(onChange) {
 
 export async function cached(name) {
   const v = versionOf(name);
-  try {
-    const c = JSON.parse(localStorage.getItem(cacheKey(name)));
-    if (c && c.v === v) return structuredClone(c.data);
-  } catch {}
-  const data = await LOADERS[name]();
-  try { localStorage.setItem(cacheKey(name), JSON.stringify({ v, data })); } catch {}
+  let c = null;
+  try { c = JSON.parse(localStorage.getItem(cacheKey(name))); } catch {}
+  if (c && c.v === v) return structuredClone(c.data);
+  let data = null;
+  // Používateľov netreba čítať všetkých znova – stačí tých, ktorí sa zmenili od poslednej synchronizácie
+  if (name === 'users' && c?.v && c.reset === versionOf('users_reset') && c.admin === isAdmin()) {
+    data = await usersDelta(c).catch(e => { console.warn('Rozdielové načítanie používateľov zlyhalo, čítam všetkých', e); return null; });
+  }
+  if (!data) data = await LOADERS[name]();
+  const extra = name === 'users' ? { reset: versionOf('users_reset'), admin: isAdmin() } : {};
+  try { localStorage.setItem(cacheKey(name), JSON.stringify({ v, data, ...extra })); } catch {}
   return data;
 }
 
-// Po zápise: označ zbierku ako zmenenú pre všetkých a zahoď vlastnú cache
-export async function bump(name) {
-  try { localStorage.removeItem(cacheKey(name)); } catch {}
-  await setDoc(doc(db, 'meta', 'versions'), { [name]: serverTimestamp() }, { merge: true });
+// Zmenení používatelia podľa updated_at (s 2-minútovou rezervou na rozdiel hodín); zmazanie či deaktiváciu
+// rieši bump('users', true), po ktorom si každý načíta zoznam celý
+async function usersDelta(c) {
+  const since = new Date(c.v - 120000);
+  const q = isAdmin()
+    ? query(col('users'), where('updated_at', '>', since))
+    : query(col('users'), where('approved', '==', true), where('updated_at', '>', since));
+  const changed = await list(q);
+  const byId = new Map(c.data.map(u => [u.id, u]));
+  changed.forEach(u => byId.set(u.id, u));
+  return [...byId.values()];
+}
+
+// Čas zmeny používateľa – podľa neho si ostatní načítajú iba zmenených
+export const touched = () => ({ updated_at: serverTimestamp() });
+
+// Po zápise: označ zbierku ako zmenenú pre všetkých. reset = všetci si musia načítať celý zoznam
+// (zmazanie alebo deaktivácia používateľa, ktorú rozdielové načítanie nezachytí).
+export async function bump(name, reset = false) {
+  if (name !== 'users' || reset) try { localStorage.removeItem(cacheKey(name)); } catch {}
+  await setDoc(doc(db, 'meta', 'versions'), { [name]: serverTimestamp(), ...(reset ? { [`${name}_reset`]: serverTimestamp() } : {}) }, { merge: true });
 }
 
 // ---------- Log aktivít (vidia ho iba admini) ----------
@@ -246,13 +268,18 @@ export function logSessionStart() {
 }
 
 // ---------- Online stav ----------
-// Kým je portál otvorený a viditeľný, raz za 2 minúty zapíšeme čas aktivity do presence/{uid}.
-// Za online považujeme toho, kto bol aktívny za posledné 3 minúty.
-const BEAT_MS = 120000;
-export const ONLINE_MS = 180000;
+// Kým je portál otvorený a viditeľný, raz za 5 minút zapíšeme čas aktivity do presence/{uid}.
+// Za online považujeme toho, kto bol aktívny za posledných 6 minút.
+const BEAT_MS = 300000;
+export const ONLINE_MS = 360000;
 let beatTimer = null;
-const beat = () => setDoc(doc(db, 'presence', auth.currentUser.uid), { last_seen: serverTimestamp() }).catch(() => {});
-const onVisibility = () => { if (document.visibilityState === 'visible') beat(); };
+let lastBeat = 0;
+const beat = () => {
+  lastBeat = Date.now();
+  return setDoc(doc(db, 'presence', auth.currentUser.uid), { last_seen: serverTimestamp() }).catch(() => {});
+};
+// Po návrate na kartu zapíšeme iba vtedy, ak posledný zápis je starší ako 2 minúty
+const onVisibility = () => { if (document.visibilityState === 'visible' && Date.now() - lastBeat > 120000) beat(); };
 
 export function startPresence() {
   stopPresence();

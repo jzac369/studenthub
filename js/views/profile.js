@@ -1,6 +1,7 @@
 import {
   auth, db, state, doc, updateDoc, deleteField, bump, startPresence, goOffline, soundEnabled, setSoundEnabled, playChime, logActivity, updatePassword, reauthenticateWithCredential, EmailAuthProvider,
   avatar, resizePhoto, esc, guard, toast, icon,
+  touched,
 } from '../lib.js';
 
 export default async function (root) {
@@ -31,7 +32,7 @@ export default async function (root) {
   </div>`;
 
   async function savePhoto(photo) {
-    await updateDoc(doc(db, 'users', p.id), { photo: photo ?? deleteField() });
+    await updateDoc(doc(db, 'users', p.id), { photo: photo ?? deleteField(), ...touched() });
     await bump('users');
     if (photo) p.photo = photo; else delete p.photo;
     const person = state.people.get(p.id);
@@ -60,7 +61,7 @@ export default async function (root) {
     e.preventDefault();
     const f = Object.fromEntries(new FormData(e.target));
     const row = { full_name: f.full_name.trim(), phone: f.phone.trim(), city: f.city.trim(), hide_online: !f.show_online };
-    await updateDoc(doc(db, 'users', p.id), row);
+    await updateDoc(doc(db, 'users', p.id), { ...row, ...touched() });
     await bump('users');
     Object.assign(p, row);
     Object.assign(state.people.get(p.id) || {}, row);

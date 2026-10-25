@@ -31,6 +31,7 @@ export async function createDemoStudents(count = 50) {
       approved: true,
       demo: true,
       created_at: serverTimestamp(),
+      updated_at: serverTimestamp(),
     });
   }
   await batch.commit();
@@ -70,7 +71,7 @@ async function deleteDemo(name) {
     demo.slice(i, i + 400).forEach(d => batch.delete(doc(db, name, d.id)));
     await batch.commit();
   }
-  if (demo.length) await bump(name);
+  if (demo.length) await bump(name, name === 'users'); // zmazaných používateľov si každý načíta nanovo
   return demo.length;
 }
 

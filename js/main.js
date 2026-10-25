@@ -25,7 +25,6 @@ const app = $('#app');
 let cleanup = null;
 let unsubConvs = null;
 let unsubVersions = null;
-let lastPage = '';
 // Stránky, ktoré sa prekreslia, keď admin niečo zmení (nástenka, rozvrh…)
 const LIVE_VIEWS = ['', 'rozvrh', 'register'];
 
@@ -50,7 +49,7 @@ async function handleSession(user) {
     let snap = await getDoc(ref);
     if (!snap.exists()) {
       // Účet bez profilu (napr. prerušená registrácia) – doplníme neschválený profil
-      await setDoc(ref, { full_name: '', email: user.email, phone: '', city: '', role: 'student', approved: false, created_at: serverTimestamp() });
+      await setDoc(ref, { full_name: '', email: user.email, phone: '', city: '', role: 'student', approved: false, created_at: serverTimestamp(), updated_at: serverTimestamp() });
       snap = await getDoc(ref);
     }
     state.profile = { id: user.uid, ...snap.data() };
@@ -166,9 +165,6 @@ async function route() {
     return;
   }
   root.innerHTML = '<p class="muted">Načítavam…</p>';
-  const page = item.label + (parts[1] ? ` / ${parts[1]}` : '');
-  if (page !== lastPage) logActivity('Zobrazenie stránky', page);
-  lastPage = page;
   try {
     const mod = await item.load();
     cleanup = (await mod.default(root, parts.slice(1))) || null;

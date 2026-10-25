@@ -56,7 +56,7 @@ export function renderAuth(root) {
       const cred = await createUserWithEmailAndPassword(auth, f.email.trim(), f.password);
       await setDoc(doc(db, 'users', cred.user.uid), {
         full_name: f.full_name.trim(), email: cred.user.email, phone: f.phone.trim(), city: f.city.trim(),
-        role: 'student', approved: false, created_at: serverTimestamp(),
+        role: 'student', approved: false, created_at: serverTimestamp(), updated_at: serverTimestamp(),
       });
     } finally {
       finish();
