@@ -1,10 +1,13 @@
 import {
-  col, list, cached, toDate, byNewest, downloadFile, logActivity, esc, guard, toast, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon, avatar, isStudent,
+  db, state, col, doc, list, cached, writeBatch, serverTimestamp, toDate, byNewest, downloadFile, logActivity, esc, guard, toast, fmtDateTime, fmtSize, safeName, downloadBlob, loadScript, icon, avatar, isStudent, isAdmin,
 } from '../lib.js';
 
-// Všetky práce (iba admini): študenti × predmety, zelená fajka = študent z predmetu odovzdal prácu
+// Všetky práce: študenti × predmety, zelená fajka = študent z predmetu odovzdal prácu.
+// Študenti vidia iba fajky (zo zbierky submitted), admini navyše práce otvoria a stiahnu jednotlivo aj hromadne.
 export default async function renderAllWorks(el) {
-  const [users, subjects, subs] = await Promise.all([cached('users'), cached('subjects'), list(col('submissions'))]);
+  if (!isAdmin()) return renderStudentView(el);
+  const [users, subjects, subs, marks] = await Promise.all([cached('users'), cached('subjects'), list(col('submissions')), list(col('submitted'))]);
+  syncMarks(subs, marks);
   const students = users.filter(u => u.approved && isStudent(u)).sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   subs.sort(byNewest);
@@ -85,4 +88,53 @@ export default async function renderAllWorks(el) {
       prog.firstElementChild.style.width = '0';
     }
   }));
+}
+
+// Doplní chýbajúce značky pre práce odovzdané pred zavedením prehľadu pre študentov
+function syncMarks(subs, marks) {
+  const have = new Set(marks.map(m => m.id));
+  const missing = [...new Map(subs.map(r => [`${r.student_id}_${r.subject_id}`, r])).entries()].filter(([id, r]) => r.subject_id && !have.has(id));
+  for (let i = 0; i < missing.length; i += 400) {
+    const batch = writeBatch(db);
+    missing.slice(i, i + 400).forEach(([id, r]) => batch.set(doc(db, 'submitted', id), { student_id: r.student_id, subject_id: r.subject_id, at: r.created_at || serverTimestamp() }));
+    batch.commit().catch(e => console.warn(e));
+  }
+}
+
+// Pohľad študenta: iba kto už odovzdal, bez súborov a názvov prác
+async function renderStudentView(el) {
+  const [users, subjects, marks] = await Promise.all([cached('users'), cached('subjects'), list(col('submitted'))]);
+  const students = users.filter(u => u.approved && isStudent(u)).sort((a, b) => a.full_name.localeCompare(b.full_name, 'sk'));
+  subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
+  const done = new Set(marks.map(m => `${m.student_id}|${m.subject_id}`));
+  const has = (s, subj) => done.has(`${s.id}|${subj.id}`);
+
+  el.innerHTML = `<div class="card">
+      <div class="row" style="margin-bottom:.75rem">
+        <input id="q" placeholder="Hľadať študenta…" style="max-width:260px">
+        <label class="check" style="margin:0"><input type="checkbox" id="missing"> Iba s chýbajúcimi prácami</label>
+        <span class="spacer"></span><span class="muted small">${students.length} študentov</span>
+      </div>
+      <div class="table-wrap"><table class="matrix"><thead><tr><th class="sticky-col">Študent</th>${subjects.map(s => {
+        const n = students.filter(st => has(st, s)).length;
+        return `<th title="${esc(s.lecturer_name || '')}"><div class="mx-head">${esc(s.name)}</div>
+          <div class="mx-sub"><span class="badge ${n === students.length && n ? 'ok' : n ? 'warn' : ''}">${n}/${students.length}</span></div></th>`;
+      }).join('')}</tr></thead><tbody id="rows"></tbody></table></div>
+      ${subjects.length ? '' : '<p class="muted">Zatiaľ nie sú zadané žiadne predmety.</p>'}
+      <p class="muted small" style="margin:.75rem 0 0">${icon('check', 13)} = práca odovzdaná, – = zatiaľ chýba. Obsah prác vidia iba autori, administrátori a lektori.</p>
+    </div>`;
+
+  const norm = s => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  function draw() {
+    const q = norm(el.querySelector('#q').value);
+    const onlyMissing = el.querySelector('#missing').checked;
+    const shown = students.filter(s => norm(s.full_name).includes(q) && (!onlyMissing || subjects.some(subj => !has(s, subj))));
+    el.querySelector('#rows').innerHTML = shown.map(s => `<tr class="${s.id === state.user.uid ? 'me-row' : ''}">
+      <td class="sticky-col"><div class="mx-student">${avatar(s, 26)}<span class="ellipsis">${esc(s.full_name)}</span></div></td>
+      ${subjects.map(subj => `<td class="mx-cell">${has(s, subj) ? `<span class="mx-ok static">${icon('check', 16)}</span>` : '<span class="mx-miss">–</span>'}</td>`).join('')}</tr>`).join('')
+      || `<tr><td colspan="${subjects.length + 1}" class="muted">Nikto nevyhovuje filtru.</td></tr>`;
+  }
+  el.querySelector('#q').oninput = draw;
+  el.querySelector('#missing').onchange = draw;
+  draw();
 }

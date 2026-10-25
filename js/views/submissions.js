@@ -1,16 +1,16 @@
 import { reviewBadge, renderGrading } from './grading.js';
 import {
   db, state, col, doc, query, where, list, cached, addDoc, deleteDoc, serverTimestamp, toDate, byNewest,
-  uploadFile, downloadFile, removeFile, adjustStats, logActivity, isAdmin, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon, modal,
+  uploadFile, downloadFile, removeFile, adjustStats, logActivity, isAdmin, markSubmitted, esc, guard, toast, fmtDate, fmtDateTime, fmtSize, safeName, downloadBlob, icon, modal,
 } from '../lib.js';
 
 export const ALLOWED = ['pdf', 'doc', 'docx', 'odt', 'rtf', 'txt', 'ppt', 'pptx', 'odp', 'xls', 'xlsx', 'ods', 'zip', 'rar', '7z', 'png', 'jpg', 'jpeg'];
 
 export default async function (root, [tab, sub] = []) {
-  // Admini majú navyše kartu Všetky práce (prehľad študentov × predmetov) a Hodnotenie (pohľad lektora)
+  // Všetky práce (prehľad študentov × predmetov) vidia všetci, admini majú navyše Hodnotenie (pohľad lektora)
   const tabLink = (key, ic, label) => `<a href="#/prace${key ? '/' + key : ''}" class="${(tab || '') === key ? 'active' : ''}">${icon(ic, 15)} ${label}</a>`;
-  const tabs = isAdmin() ? `<div class="tabs">${tabLink('', 'upload', 'Moje práce')}${tabLink('vsetky', 'users', 'Všetky práce')}${tabLink('hodnotenie', 'award', 'Hodnotenie')}</div>` : '';
-  if (isAdmin() && (tab === 'vsetky' || tab === 'hodnotenie')) {
+  const tabs = `<div class="tabs">${tabLink('', 'upload', 'Moje práce')}${tabLink('vsetky', 'users', 'Všetky práce')}${isAdmin() ? tabLink('hodnotenie', 'award', 'Hodnotenie') : ''}</div>`;
+  if (tab === 'vsetky' || (isAdmin() && tab === 'hodnotenie')) {
     root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} Práce</h1></div>${tabs}<div id="all">Načítavam…</div>`;
     if (tab === 'hodnotenie') return renderGrading(root.querySelector('#all'), sub, '#/prace/hodnotenie');
     return (await import('./allworks.js')).default(root.querySelector('#all'));
@@ -21,7 +21,7 @@ export default async function (root, [tab, sub] = []) {
   subjects.sort((a, b) => a.name.localeCompare(b.name, 'sk'));
   assignments.sort((a, b) => (a.due_date || '9').localeCompare(b.due_date || '9'));
 
-  root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} ${isAdmin() ? 'Práce' : 'Moje práce'}</h1></div>${tabs}
+  root.innerHTML = `<div class="title-row"><h1>${icon('upload', 24)} Práce</h1></div>${tabs}
   ${subjects.length ? '' : '<div class="card"><p class="muted" style="margin:0">Administrátor ešte nepridal predmety, preto zatiaľ nie je možné odovzdať prácu.</p></div>'}
   <form class="card ${subjects.length ? '' : 'hidden'}" id="up"><h2>Odovzdať novú prácu</h2>
     <div class="grid" style="gap:0 1rem">
@@ -86,6 +86,7 @@ export default async function (root, [tab, sub] = []) {
         throw err;
       }
       adjustStats(file.size, 1);
+      await markSubmitted(uid, subject.id).catch(e => console.warn(e));
       logActivity('Odovzdanie práce', `„${el.title.value.trim()}“ – ${subject.name}, ${file.name} (${fmtSize(file.size)})`);
       toast('Práca bola odovzdaná');
       form.reset();
@@ -139,6 +140,10 @@ export default async function (root, [tab, sub] = []) {
       await deleteDoc(doc(db, 'submissions', r.id));
       await removeFile(r.file_path).catch(() => {});
       adjustStats(-r.file_size, -1);
+      // Ak z predmetu nezostala žiadna práca, zmizne aj fajka vo Všetkých prácach
+      if (!items.some(x => x.id !== r.id && x.subject_id === r.subject_id)) {
+        await deleteDoc(doc(db, 'submitted', `${uid}_${r.subject_id}`)).catch(() => {});
+      }
       logActivity('Zmazanie práce', `„${r.title}“ – ${r.file_name}`);
       toast('Zmazané');
       refresh();

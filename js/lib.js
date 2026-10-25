@@ -171,7 +171,7 @@ export const safeName = s => String(s || 'subor').normalize('NFD').replace(/[̀-
 // ---------- Šetrenie čítaní ----------
 // Málo meniace sa zbierky si pamätáme v prehliadači. Dokument meta/versions drží čas poslednej
 // zmeny každej zbierky; ak sa nezmenil, údaje sa berú z cache a databáza sa vôbec nečíta.
-const CACHE_PREFIX = 'sh-cache:';
+const CACHE_PREFIX = 'sh-cache2:';
 const LOADERS = {
   users: () => list(isAdmin() ? col('users') : query(col('users'), where('approved', '==', true))),
   announcements: () => list(col('announcements')),
@@ -311,6 +311,10 @@ export function quotaUsage(stats = {}, usage = {}) {
   }
   return items;
 }
+
+// Značka „študent X odovzdal prácu z predmetu Y“ – vidia ju všetci (bez názvu, súboru či poznámky)
+export const markSubmitted = (studentId, subjectId) =>
+  setDoc(doc(db, 'submitted', `${studentId}_${subjectId}`), { student_id: studentId, subject_id: subjectId, at: serverTimestamp() });
 
 export function clearCache() {
   try {

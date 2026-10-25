@@ -144,6 +144,16 @@ service cloud.firestore {
                     && resource.data.status == 'submitted' && !('review_status' in resource.data));
     }
 
+    // Značky „študent odovzdal prácu z predmetu“ pre prehľad Všetky práce – bez obsahu práce
+    match /submitted/{id} {
+      allow read: if approved();
+      allow create, update: if admin() || (approved() && enabled('uploads_enabled')
+                    && request.resource.data.student_id == request.auth.uid
+                    && id == request.auth.uid + '_' + request.resource.data.subject_id
+                    && request.resource.data.keys().hasOnly(['student_id', 'subject_id', 'at']));
+      allow delete: if admin() || (approved() && resource.data.student_id == request.auth.uid);
+    }
+
     // ---------- Správy ----------
     // Admin NEvidí cudzie súkromné správy – iba členovia konverzácie.
     match /conversations/{cid} {
