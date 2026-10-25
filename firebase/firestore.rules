@@ -31,7 +31,7 @@ service cloud.firestore {
                     && request.resource.data.email == request.auth.token.email);
       // Študent smie meniť iba meno, telefón, mesto a profilovú fotku (malý JPEG, max. ~60 kB)
       allow update: if admin() || (request.auth.uid == uid
-                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['full_name', 'phone', 'city', 'photo', 'hide_online'])
+                    && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['full_name', 'phone', 'city', 'photo', 'hide_online', 'updated_at'])
                     && (!('photo' in request.resource.data)
                         || (request.resource.data.photo is string
                             && request.resource.data.photo.size() < 61440
